@@ -243,6 +243,11 @@ window.handleFullRegistration = async function() {
     const id = document.getElementById('regId').value, name = document.getElementById('regName').value, pos = document.getElementById('regPosition').value, birth = document.getElementById('regBirth').value;
     if (!id || !name || !pos || !birth) return alert("Lengkapi data!");
     
+    // Check if ID already exists
+    if (allEmployees.find(e => e.employee_id === id)) {
+        return alert(`Gagal: ID/NIK "${id}" sudah terdaftar atas nama lain! Silakan gunakan ID yang berbeda.`);
+    }
+
     try {
         const api = window.faceapi || faceapi;
         const det = await api.detectSingleFace(videoRegister, new api.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
