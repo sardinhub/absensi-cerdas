@@ -159,6 +159,20 @@ window.handleFullRegistration = async function() {
             alert("Wajah tidak terdeteksi!");
         } else {
             const descriptor = Array.from(detections.descriptor);
+            const api = window.faceapi || faceapi;
+
+            // VALIDASI ANTI-WAJAH GANDA (Cek apakah wajah ini sudah ada di database)
+            const duplicate = allEmployees.find(emp => {
+                if (!emp.face_embedding) return false;
+                const storedDescriptor = new Float32Array(emp.face_embedding);
+                const distance = api.euclideanDistance(detections.descriptor, storedDescriptor);
+                return distance < 0.55; // Ambang batas kemiripan (makin kecil makin ketat)
+            });
+
+            if (duplicate) {
+                return alert(`PENDAFTARAN DITOLAK!\nWajah ini sudah terdaftar di sistem atas nama: ${duplicate.full_name}`);
+            }
+
             const { error } = await supabaseClient.from('employees').insert([{
                 employee_id: empIdStr,
                 full_name: name,
