@@ -64,14 +64,21 @@ async function startCamera() {
             <div class="status-icon" style="color: var(--danger)"><i class="ri-error-warning-line"></i></div>
             <div class="status-text">
                 <h3>Camera Error</h3>
-                <p>Akses kamera diblokir atau model gagal dimuat</p>
+                <p>Akses kamera diblokir atau gagal dimuat</p>
             </div>
         `;
+        throw error; // Lempar error agar tombol bisa di-reset
     }
 }
 
-// Panggil kamera saat load
-startCamera();
+// Set status awal saat halaman dimuat
+scanStatus.innerHTML = `
+    <div class="status-icon" style="color: var(--text-muted)"><i class="ri-vidicon-line"></i></div>
+    <div class="status-text">
+        <h3>Kamera Nonaktif</h3>
+        <p>Klik tombol di bawah untuk menyalakan kamera</p>
+    </div>
+`;
 
 // --- 2. LOGIC ENGINE (Smart Timing & Reward-Penalty) ---
 
@@ -143,8 +150,26 @@ function displayResult(logicResult, timeStr) {
 }
 
 // --- Deteksi Wajah Asli saat Tombol Ditekan ---
+let isCameraOn = false;
+btnScan.innerHTML = '<i class="ri-vidicon-line"></i> Nyalakan Kamera';
+
 btnScan.addEventListener('click', async () => {
-    // Efek loading
+    if (!isCameraOn) {
+        // Logika 1: Nyalakan kamera terlebih dahulu
+        btnScan.innerHTML = '<i class="ri-loader-4-line status-icon loading"></i> Mempersiapkan Kamera...';
+        btnScan.disabled = true;
+        try {
+            await startCamera();
+            isCameraOn = true;
+            btnScan.innerHTML = '<i class="ri-focus-3-line"></i> Pindai Wajah (Scan)';
+        } catch (e) {
+            btnScan.innerHTML = '<i class="ri-vidicon-line"></i> Coba Lagi';
+        }
+        btnScan.disabled = false;
+        return;
+    }
+
+    // Logika 2: Jika kamera sudah menyala, lakukan scan wajah
     const originalText = btnScan.innerHTML;
     btnScan.innerHTML = '<i class="ri-loader-4-line status-icon loading"></i> Mendeteksi Wajah...';
     btnScan.disabled = true;
