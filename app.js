@@ -33,7 +33,7 @@ document.addEventListener('DOMContentLoaded', () => {
     updateTime();
     
     // Load Leaderboard
-    if (supabase) fetchLeaderboard();
+    if (supabaseClient) fetchLeaderboard();
 });
 
 // Config dari Database (Simulasi settings_config MVP)
@@ -224,11 +224,11 @@ window.handleMainAction = async function() {
         const timeStr = now.toLocaleTimeString('en-US', { hour12: true, hour: '2-digit', minute: '2-digit' });
         const logicResult = calculateAttendanceLogic(now);
         
-        if (supabase) {
+        if (supabaseClient) {
             try {
-                const { data: empData, error: empErr } = await supabase.from('employees').select('id, full_name, department').limit(1).single();
+                const { data: empData, error: empErr } = await supabaseClient.from('employees').select('id, full_name, department').limit(1).single();
                 if (empData) {
-                    await supabase.from('attendance_logs').insert([{
+                    await supabaseClient.from('attendance_logs').insert([{
                         employee_id: empData.id,
                         check_in_time: now.toISOString(),
                         status: logicResult.status,
@@ -348,10 +348,10 @@ const SUPABASE_URL = 'https://besicmdkrakjxevmrzly.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJlc2ljbWRrcmFranhldm1yemx5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg2MTI2MzMsImV4cCI6MjA5NDE4ODYzM30.j61NxM-HY-FxXXfD1Hj2WWEZpLxofdVBSIsE0hHDjxM';
 
 // Inisialisasi Supabase Client secara otomatis dengan Try-Catch
-let supabase;
+let supabaseClient;
 try {
-    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    console.log("Supabase Client disiapkan:", supabase);
+    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    console.log("Supabase Client disiapkan:", supabaseClient);
 } catch (e) {
     console.error("Gagal inisialisasi Supabase:", e);
 }
@@ -361,7 +361,7 @@ let globalAttendanceData = [];
 
 async function fetchLeaderboard() {
     try {
-        const { data, error } = await supabase
+        const { data, error } = await supabaseClient
             .from('attendance_logs')
             .select(`
                 check_in_time, 
