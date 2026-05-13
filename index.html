@@ -9,34 +9,45 @@
     <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
     <style>
         .hidden { display: none !important; }
-        .form-label { display: block; margin-bottom: 5px; font-size: 0.85rem; color: var(--text-muted); }
+        .form-label { display: block; margin-bottom: 5px; font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; }
         .form-input { 
-            width: 100%; padding: 12px; border-radius: 10px; 
+            width: 100%; padding: 14px; border-radius: 12px; 
             background: rgba(255,255,255,0.05); color: white; 
-            border: 1px solid rgba(255,255,255,0.1); outline: none;
+            border: 1px solid rgba(255,255,255,0.1); outline: none; transition: 0.3s;
         }
         .form-input option { background-color: #1a1c23; color: white; }
-        .form-input:focus { border-color: var(--primary); }
+        .form-input:focus { border-color: var(--primary); background: rgba(255,255,255,0.08); }
         .admin-only { display: none; }
         .is-admin .admin-only { display: block; }
-        .table-container { overflow-x: auto; margin-top: 20px; }
+        .table-container { overflow-x: auto; margin-top: 20px; border-radius: 15px; background: rgba(0,0,0,0.2); }
         table { width: 100%; border-collapse: collapse; color: white; font-size: 0.85rem; }
-        th { text-align: left; padding: 12px; background: rgba(255,255,255,0.05); color: var(--text-muted); }
-        td { padding: 12px; border-bottom: 1px solid rgba(255,255,255,0.05); }
-        .btn-icon { padding: 5px 8px; font-size: 1.1rem; cursor: pointer; border-radius: 5px; border: none; }
-        .btn-edit { background: rgba(59, 130, 246, 0.2); color: #3b82f6; }
-        .btn-delete { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
-        .modal { position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:20000; display:flex; align-items:center; justify-content:center; }
+        th { text-align: left; padding: 15px; background: rgba(255,255,255,0.03); color: var(--text-muted); font-weight: 500; }
+        td { padding: 15px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        
+        /* Square Camera Styling */
+        .square-camera {
+            width: 300px; height: 300px; margin: 0 auto;
+            border-radius: 20px; overflow: hidden;
+            border: 3px solid rgba(255,255,255,0.1);
+            position: relative; background: #000;
+        }
+        .square-camera video { width: 100%; height: 100%; object-fit: cover; }
+        
+        .registration-grid { display: flex; gap: 30px; flex-wrap: wrap; align-items: center; justify-content: center; }
+        .reg-form-container { flex: 1; min-width: 300px; display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        @media (max-width: 768px) { .reg-form-container { grid-template-columns: 1fr; } .registration-grid { flex-direction: column; } }
+
+        .btn-icon { padding: 8px; border-radius: 8px; cursor: pointer; border: none; transition: 0.2s; }
+        .btn-edit { background: rgba(59, 130, 246, 0.15); color: #3b82f6; }
+        .btn-delete { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+        .btn-icon:hover { transform: scale(1.1); }
+        .modal { position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:20000; display:flex; align-items:center; justify-content:center; padding: 20px; }
     </style>
 </head>
 <body>
     <div class="app-container" id="appRoot">
-        <!-- Sidebar -->
         <nav class="sidebar">
-            <div class="sidebar-header">
-                <div class="logo"><i class="ri-shield-user-line"></i></div>
-                <span>SmartAttend</span>
-            </div>
+            <div class="sidebar-header"><div class="logo"><i class="ri-shield-user-line"></i></div><span>SmartAttend</span></div>
             <ul class="nav-links">
                 <li class="active" id="tabCheckIn"><a href="javascript:void(0)" onclick="switchTab('checkin')"><i class="ri-scan-2-line"></i> Absensi</a></li>
                 <li id="tabEmployees" class="admin-only"><a href="javascript:void(0)" onclick="switchTab('register')"><i class="ri-group-line"></i> Manajemen Staf</a></li>
@@ -44,144 +55,117 @@
                 <li id="tabReport" class="admin-only"><a href="javascript:void(0)" onclick="switchTab('report')"><i class="ri-file-chart-line"></i> Laporan</a></li>
                 <li id="tabSettings" class="admin-only"><a href="javascript:void(0)" onclick="switchTab('settings')"><i class="ri-settings-4-line"></i> Pengaturan</a></li>
             </ul>
-            <div style="margin-top: auto; padding: 20px;">
-                <button class="btn btn-secondary" id="adminBtn" onclick="toggleAdminLogin()" style="width: 100%;"><i class="ri-admin-line"></i> Login Admin</button>
-            </div>
+            <div style="margin-top: auto; padding: 20px;"><button class="btn btn-secondary" id="adminBtn" onclick="toggleAdminLogin()" style="width: 100%; border-radius: 12px;"><i class="ri-admin-line"></i> Login Admin</button></div>
         </nav>
 
-        <!-- Main -->
         <main class="main-content">
             <header class="topbar">
                 <div style="display: flex; align-items: center; gap: 15px;">
                     <button class="menu-toggle" id="menuToggle"><i class="ri-menu-line"></i></button>
-                    <div>
-                        <h1 class="page-title" id="mainTitle">Biometric Auth</h1>
-                        <p class="page-subtitle" id="mainSubtitle">Silakan pilih nama dan scan wajah</p>
-                    </div>
+                    <div><h1 class="page-title" id="mainTitle">Biometric Auth</h1><p class="page-subtitle" id="mainSubtitle">Scan wajah untuk absensi</p></div>
                 </div>
-                <div class="time-display" style="text-align: right; line-height: 1.2;">
+                <div style="text-align: right; line-height: 1.2;">
                     <div id="currentDate" style="font-size: 0.8rem; color: var(--text-muted);">...</div>
-                    <div id="currentTime" style="font-size: 1.3rem; font-weight: 700; color: var(--primary);">00:00:00</div>
+                    <div id="currentTime" style="font-size: 1.4rem; font-weight: 700; color: var(--primary);">00:00:00</div>
                 </div>
             </header>
 
             <!-- Tab: Absensi -->
             <div id="checkInGrid">
                 <div class="grid-layout">
-                    <section class="scan-section glass-card">
-                        <label class="form-label">Pilih Nama Staf</label>
-                        <select id="attendanceEmployeeSelect" class="form-input" style="margin-bottom: 20px;">
-                            <option value="">-- Pilih Nama --</option>
-                        </select>
-                        <div class="camera-container" style="height: 250px;">
-                            <video id="videoFeed" autoplay muted playsinline></video>
+                    <section class="scan-section glass-card" style="text-align: center;">
+                        <div style="text-align: left; margin-bottom: 20px;">
+                            <label class="form-label">Pilih Nama Anda</label>
+                            <select id="attendanceEmployeeSelect" class="form-input"><option value="">-- Pilih Nama --</option></select>
                         </div>
-                        <div id="cameraInitAction" style="margin-top: 15px;">
-                            <button class="btn btn-primary" style="width: 100%;" onclick="initCamera('absensi')">Nyalakan Kamera</button>
-                        </div>
-                        <div id="attendanceActions" class="hidden" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px;">
-                            <button class="btn btn-primary" onclick="handleAttendance('in')">Scan Masuk</button>
-                            <button class="btn btn-secondary" onclick="handleAttendance('out')" style="background: rgba(239, 68, 68, 0.2); color: #ef4444;">Scan Pulang</button>
+                        <div class="square-camera"><video id="videoFeed" autoplay muted playsinline></video></div>
+                        <div id="cameraInitAction" style="margin-top: 20px;"><button class="btn btn-primary" style="width: 100%;" onclick="initCamera('absensi')">Aktifkan Kamera</button></div>
+                        <div id="attendanceActions" class="hidden" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 20px;">
+                            <button class="btn btn-primary" onclick="handleAttendance('in')"><i class="ri-login-box-line"></i> MASUK</button>
+                            <button class="btn btn-secondary" onclick="handleAttendance('out')" style="background:rgba(239, 68, 68, 0.1); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.2);"><i class="ri-logout-box-line"></i> PULANG</button>
                         </div>
                     </section>
                     <section class="results-section">
                         <div class="glass-card result-card">
                             <h2>Status Terakhir</h2>
-                            <div id="resultBox" class="result-box hidden">
-                                <h3 id="resultName">Nama</h3>
-                                <p id="resultTime">Jam</p>
-                                <span id="resultBadge" class="badge">Status</span>
-                            </div>
-                            <div id="waitingState" class="waiting-state"><p>Menunggu Scan...</p></div>
+                            <div id="resultBox" class="result-box hidden"><h3 id="resultName">Nama</h3><p id="resultTime">Jam</p><span id="resultBadge" class="badge">Status</span></div>
+                            <div id="waitingState" class="waiting-state"><i class="ri-user-search-line" style="font-size: 3rem; opacity: 0.2;"></i><p style="margin-top: 10px;">Menunggu Scan...</p></div>
                         </div>
                     </section>
                 </div>
             </div>
 
-            <!-- Tab: Registrasi & Manajemen Staf -->
+            <!-- Tab: Manajemen Staf -->
             <section id="registerSection" class="hidden">
                 <div class="glass-card" style="margin-bottom: 30px;">
-                    <h2>Registrasi Staf Baru</h2>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin: 20px 0;">
-                        <input type="text" id="regId" class="form-input" placeholder="ID / NIK">
-                        <input type="text" id="regName" class="form-input" placeholder="Nama Lengkap">
-                        <input type="text" id="regPosition" class="form-input" placeholder="Jabatan">
-                        <input type="date" id="regBirth" class="form-input">
+                    <h2 style="margin-bottom: 20px;">Registrasi Staf Baru</h2>
+                    <div class="registration-grid">
+                        <div class="square-camera" style="margin: 0;"><video id="videoRegister" autoplay muted playsinline></video></div>
+                        <div class="reg-form-container">
+                            <div><label class="form-label">ID / NIK</label><input type="text" id="regId" class="form-input" placeholder="Contoh: TS001"></div>
+                            <div><label class="form-label">Nama Lengkap</label><input type="text" id="regName" class="form-input" placeholder="Nama Lengkap"></div>
+                            <div><label class="form-label">Jabatan</label><input type="text" id="regPosition" class="form-input" placeholder="Contoh: Manager"></div>
+                            <div><label class="form-label">Tanggal Lahir</label><input type="date" id="regBirth" class="form-input"></div>
+                            <div style="grid-column: 1 / -1; margin-top: 10px;">
+                                <button class="btn btn-primary" id="regCameraBtn" onclick="initCamera('register')" style="width:100%;">Nyalakan Kamera</button>
+                                <button class="btn btn-primary hidden" id="regSaveBtn" onclick="handleFullRegistration()" style="width:100%;"><i class="ri-save-line"></i> Simpan Data & Wajah</button>
+                            </div>
+                        </div>
                     </div>
-                    <div class="camera-container" style="height: 200px; margin-bottom: 15px;">
-                        <video id="videoRegister" autoplay muted playsinline></video>
-                    </div>
-                    <button class="btn btn-primary" id="regCameraBtn" onclick="initCamera('register')" style="width:100%;">Nyalakan Kamera</button>
-                    <button class="btn btn-primary hidden" id="regSaveBtn" onclick="handleFullRegistration()" style="width:100%;">Simpan Data & Wajah</button>
                 </div>
-
                 <div class="glass-card">
                     <h2>Daftar Staf Terdaftar</h2>
-                    <div class="table-container">
-                        <table>
-                            <thead><tr><th>ID</th><th>Nama</th><th>Jabatan</th><th>Aksi</th></tr></thead>
-                            <tbody id="staffTableBody"></tbody>
-                        </table>
-                    </div>
+                    <div class="table-container"><table><thead><tr><th>ID</th><th>Nama</th><th>Jabatan</th><th>Aksi</th></tr></thead><tbody id="staffTableBody"></tbody></table></div>
                 </div>
             </section>
 
             <!-- Tab: History -->
             <section id="historySection" class="glass-card hidden">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <h2>Riwayat Absensi</h2>
-                    <button class="btn btn-secondary" onclick="loadHistory()">Refresh</button>
-                </div>
-                <div class="table-container">
-                    <table>
-                        <thead><tr><th>Nama</th><th>Waktu</th><th>Tipe</th><th>Status</th><th>Aksi</th></tr></thead>
-                        <tbody id="historyTableBody"></tbody>
-                    </table>
-                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center;"><h2>Riwayat Absensi</h2><button class="btn btn-secondary" onclick="loadHistory()"><i class="ri-refresh-line"></i> Refresh</button></div>
+                <div class="table-container"><table><thead><tr><th>Nama</th><th>Waktu</th><th>Tipe</th><th>Status</th><th>Aksi</th></tr></thead><tbody id="historyTableBody"></tbody></table></div>
             </section>
 
-            <!-- Tab: Laporan -->
+            <!-- Tab: Report -->
             <section id="reportSection" class="glass-card hidden">
                 <h2>Laporan & Rekap</h2>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin: 20px 0;">
                     <select id="reportEmployeeFilter" class="form-input" onchange="loadReport()"></select>
-                    <select id="reportPeriodFilter" class="form-input" onchange="loadReport()">
-                        <option value="daily">Hari Ini</option><option value="weekly">Minggu Ini</option><option value="monthly">Bulan Ini</option>
-                    </select>
+                    <select id="reportPeriodFilter" class="form-input" onchange="loadReport()"><option value="daily">Hari Ini</option><option value="weekly">Minggu Ini</option><option value="monthly">Bulan Ini</option></select>
                 </div>
-                <tbody id="reportTableBody"></tbody>
+                <div id="reportSummary"></div>
+                <div class="table-container"><table><thead><tr><th>Nama</th><th>Tanggal</th><th>Status</th><th>Reward</th><th>Denda</th></tr></thead><tbody id="reportTableBody"></tbody></table></div>
             </section>
 
             <!-- Tab: Settings -->
-            <section id="settingsSection" class="glass-card hidden">
+            <section id="settingsSection" class="glass-card hidden" style="max-width: 450px; margin: 0 auto;">
                 <h2>Pengaturan</h2>
-                <input type="password" id="setAdminPass" class="form-input" placeholder="Password Admin Baru" style="margin-top:20px;">
-                <button class="btn btn-primary" onclick="saveSettings()" style="margin-top:15px;">Simpan</button>
+                <div style="margin-top: 20px;"><label class="form-label">Password Admin Baru</label><input type="password" id="setAdminPass" class="form-input" placeholder="Masukkan password baru"></div>
+                <button class="btn btn-primary" onclick="saveSettings()" style="margin-top: 15px; width: 100%;">Update Password</button>
             </section>
         </main>
     </div>
 
     <!-- Modals -->
     <div id="editStaffModal" class="modal hidden">
-        <div class="glass-card" style="width:400px;">
-            <h3>Edit Data Staf</h3>
-            <div style="margin: 20px 0; display:grid; gap:10px;">
+        <div class="glass-card" style="width:400px; border: 1px solid rgba(255,255,255,0.1);">
+            <h3 style="margin-bottom: 20px;">Edit Data Staf</h3>
+            <div style="display:grid; gap:15px; margin-bottom: 20px;">
                 <input type="hidden" id="editStaffId">
-                <input type="text" id="editStaffName" class="form-input" placeholder="Nama">
-                <input type="text" id="editStaffPos" class="form-input" placeholder="Jabatan">
+                <div><label class="form-label">Nama</label><input type="text" id="editStaffName" class="form-input"></div>
+                <div><label class="form-label">Jabatan</label><input type="text" id="editStaffPos" class="form-input"></div>
             </div>
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
                 <button class="btn btn-secondary" onclick="closeModals()">Batal</button>
-                <button class="btn btn-primary" onclick="updateStaff()">Simpan Perubahan</button>
+                <button class="btn btn-primary" onclick="updateStaff()">Simpan</button>
             </div>
         </div>
     </div>
 
-    <!-- Login Modal -->
     <div id="loginModal" class="modal hidden">
-        <div class="glass-card" style="width:320px; text-align:center;">
-            <h3>Login Admin</h3>
-            <input type="password" id="loginPass" class="form-input" placeholder="Password Admin" style="margin: 20px 0;">
+        <div class="glass-card" style="width:340px; text-align:center;">
+            <i class="ri-lock-password-line" style="font-size: 3rem; color: var(--primary);"></i>
+            <h3 style="margin: 15px 0;">Login Admin</h3>
+            <input type="password" id="loginPass" class="form-input" placeholder="Password" style="margin-bottom: 20px; text-align: center;">
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
                 <button class="btn btn-secondary" onclick="toggleAdminLogin()">Batal</button>
                 <button class="btn btn-primary" onclick="processAdminLogin()">Login</button>
@@ -189,8 +173,28 @@
         </div>
     </div>
 
+    <div id="earlyOutModal" class="modal hidden">
+        <div class="glass-card" style="max-width:380px; text-align:center;">
+            <i class="ri-error-warning-line" style="font-size: 3.5rem; color: #ef4444;"></i>
+            <h2 style="margin: 15px 0;">Belum Jam Pulang!</h2>
+            <div style="text-align: left; margin-bottom: 20px;">
+                <label class="form-label">Alasan</label><textarea id="earlyReason" class="form-input" style="height:80px;"></textarea>
+                <label class="form-label" style="margin-top:10px;">Password Admin</label><input type="password" id="adminApprovePass" class="form-input">
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                <button class="btn btn-secondary" onclick="closeModals()">Batal</button>
+                <button class="btn btn-primary" onclick="confirmEarlyOut()" style="background:#ef4444; border-color:#ef4444;">Kirim Izin</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="offlineOverlay" class="hidden" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.95); z-index:50000; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center;">
+        <i class="ri-moon-clear-line" style="font-size:6rem; color:var(--primary); margin-bottom:20px;"></i>
+        <h1 style="color:white;">SISTEM OFFLINE</h1><p style="color:var(--text-muted);">Sistem beroperasi Senin - Sabtu saja.</p>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.12/dist/face-api.js"></script>
-    <script src="app.js?v=7"></script>
+    <script src="app.js?v=8"></script>
 </body>
 </html>
