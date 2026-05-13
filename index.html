@@ -173,7 +173,23 @@
                     <select id="reportPeriodFilter" class="form-input" onchange="loadReport()"><option value="daily">Hari Ini</option><option value="weekly">Minggu Ini</option><option value="monthly">Bulan Ini</option></select>
                 </div>
                 <div id="reportSummary"></div>
-                <div class="table-container"><table><thead><tr><th>Nama</th><th>Tanggal</th><th>Status</th><th>Reward</th><th>Denda</th></tr></thead><tbody id="reportTableBody"></tbody></table></div>
+                <div class="table-container" style="background: rgba(255,255,255,0.01); border: 1px solid rgba(255,255,255,0.05); border-radius: 15px; overflow: hidden;">
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <thead>
+                            <tr style="background: rgba(255,255,255,0.05); color: var(--text-muted);">
+                                <th style="padding: 15px; font-size: 0.7rem; letter-spacing: 1px; text-align: left;">NAMA STAF</th>
+                                <th style="padding: 15px; font-size: 0.7rem; letter-spacing: 1px; text-align: left;">TANGGAL</th>
+                                <th style="padding: 15px; font-size: 0.7rem; letter-spacing: 1px; text-align: left;">MASUK</th>
+                                <th style="padding: 15px; font-size: 0.7rem; letter-spacing: 1px; text-align: left;">PULANG</th>
+                                <th style="padding: 15px; font-size: 0.7rem; letter-spacing: 1px; text-align: left;">TELAT</th>
+                                <th style="padding: 15px; font-size: 0.7rem; letter-spacing: 1px; text-align: left;">STATUS</th>
+                                <th style="padding: 15px; font-size: 0.7rem; letter-spacing: 1px; text-align: left;">REWARD</th>
+                                <th style="padding: 15px; font-size: 0.7rem; letter-spacing: 1px; text-align: left;">DENDA</th>
+                            </tr>
+                        </thead>
+                        <tbody id="reportTableBody"></tbody>
+                    </table>
+                </div>
             </section>
 
             <!-- Tab: Settings -->
