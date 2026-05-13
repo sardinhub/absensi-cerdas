@@ -133,8 +133,21 @@
 
             <!-- Tab: History -->
             <section id="historySection" class="glass-card hidden">
-                <div style="display: flex; justify-content: space-between; align-items: center;"><h2>Riwayat Absensi</h2><button class="btn btn-secondary" onclick="loadHistory()"><i class="ri-refresh-line"></i> Refresh</button></div>
-                <div class="table-container"><table><thead><tr><th>Nama</th><th>Waktu</th><th>Tipe</th><th>Status</th><th>Aksi</th></tr></thead><tbody id="historyTableBody"></tbody></table></div>
+                <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;">
+                    <h2>Riwayat Absensi</h2>
+                    <div style="display: flex; gap: 10px;">
+                        <button class="btn btn-primary" onclick="openManualAttendance()" style="background: var(--primary); font-size: 0.8rem;">
+                            <i class="ri-edit-box-line"></i> Input Manual (Sakit/Ijin/TL)
+                        </button>
+                        <button class="btn btn-secondary" onclick="loadHistory()"><i class="ri-refresh-line"></i> Refresh</button>
+                    </div>
+                </div>
+                <div class="table-container">
+                    <table>
+                        <thead><tr><th>Nama</th><th>Waktu</th><th>Tipe</th><th>Status</th><th>Aksi</th></tr></thead>
+                        <tbody id="historyTableBody"></tbody>
+                    </table>
+                </div>
             </section>
 
             <!-- Tab: Report -->
@@ -206,6 +219,34 @@
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
                 <button class="btn btn-secondary" onclick="closeModals()">Batal</button>
                 <button class="btn btn-primary" onclick="updateStaff()">Simpan</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="manualAttendanceModal" class="modal hidden">
+        <div class="glass-card" style="width:400px; border: 1px solid rgba(255,255,255,0.1);">
+            <h3 style="margin-bottom: 20px;"><i class="ri-edit-box-line"></i> Input Manual Staf</h3>
+            <div style="display:grid; gap:15px; margin-bottom: 20px;">
+                <div>
+                    <label class="form-label">Pilih Staf</label>
+                    <select id="manualEmpId" class="form-input"></select>
+                </div>
+                <div>
+                    <label class="form-label">Keterangan Kehadiran</label>
+                    <select id="manualStatus" class="form-input">
+                        <option value="Sakit">Sakit</option>
+                        <option value="Ijin">Ijin</option>
+                        <option value="Tugas Luar">Tugas Luar</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label">Catatan Tambahan</label>
+                    <textarea id="manualNote" class="form-input" style="height: 70px;" placeholder="Contoh: Sakit tipes, atau Dinas ke Bandung"></textarea>
+                </div>
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                <button class="btn btn-secondary" onclick="closeModals()">Batal</button>
+                <button class="btn btn-primary" onclick="saveManualAttendance()">Simpan Data</button>
             </div>
         </div>
     </div>

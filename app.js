@@ -117,6 +117,38 @@ async function loadHistory() {
 }
 window.deleteLog = async (id) => { if (confirm("Hapus log absensi ini?")) { await supabaseClient.from('attendance_logs').delete().eq('id', id); loadHistory(); } };
 
+window.openManualAttendance = () => {
+    const select = document.getElementById('manualEmpId');
+    select.innerHTML = allEmployees.map(e => `<option value="${e.id}">${e.full_name}</option>`).join('');
+    document.getElementById('manualAttendanceModal').classList.remove('hidden');
+};
+
+window.saveManualAttendance = async () => {
+    const empId = document.getElementById('manualEmpId').value;
+    const status = document.getElementById('manualStatus').value;
+    const note = document.getElementById('manualNote').value;
+    
+    if (!empId || !status) return alert("Pilih staf dan status!");
+
+    const { error } = await supabaseClient.from('attendance_logs').insert([{
+        employee_id: empId,
+        check_in_time: new Date().toISOString(),
+        status: status,
+        type: 'manual',
+        notes: note,
+        reward_amount: 0,
+        penalty_amount: 0
+    }]);
+
+    if (!error) {
+        alert("Data Ketidakhadiran Berhasil Disimpan!");
+        closeModals();
+        loadHistory();
+    } else {
+        alert("Gagal: " + error.message);
+    }
+};
+
 // --- ATTENDANCE ---
 window.handleAttendance = async function(type) {
     const empId = attendanceEmployeeSelect.value; if (!empId) return alert("Pilih nama!");
