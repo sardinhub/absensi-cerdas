@@ -149,29 +149,46 @@
             </section>
 
             <!-- Tab: Settings -->
-            <section id="settingsSection" class="glass-card hidden" style="max-width: 500px; margin: 0 auto;">
-                <h2>Pengaturan Sistem</h2>
-                <div style="display: grid; gap: 20px; margin-top: 25px;">
-                    <div>
-                        <label class="form-label">Password Admin</label>
-                        <input type="password" id="setAdminPass" class="form-input" placeholder="Password untuk akses Admin">
-                    </div>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
-                        <div>
-                            <label class="form-label">Reward Early Bird (Rp)</label>
-                            <input type="number" id="setReward" class="form-input" placeholder="Contoh: 15000">
+            <section id="settingsSection" class="hidden">
+                <div class="glass-card" style="max-width: 550px; margin: 0 auto;">
+                    <h2 style="margin-bottom: 25px;"><i class="ri-settings-5-line"></i> Pengaturan Sistem</h2>
+                    
+                    <div style="display: grid; gap: 25px;">
+                        <!-- Group: Keamanan -->
+                        <div style="background: rgba(255,255,255,0.03); padding: 20px; border-radius: 15px; border: 1px solid rgba(255,255,255,0.05);">
+                            <label class="form-label"><i class="ri-key-2-line"></i> Password Keamanan Admin</label>
+                            <input type="password" id="setAdminPass" class="form-input" placeholder="Masukkan password baru">
+                            <small style="color:var(--text-muted); font-size:0.7rem; margin-top:5px; display:block;">Digunakan untuk login Admin dan approval pulang cepat.</small>
                         </div>
-                        <div>
-                            <label class="form-label">Denda Terlambat / Menit (Rp)</label>
-                            <input type="number" id="setPenalty" class="form-input" placeholder="Contoh: 1000">
+
+                        <!-- Group: Finansial -->
+                        <div style="background: rgba(255,255,255,0.03); padding: 20px; border-radius: 15px; border: 1px solid rgba(255,255,255,0.05);">
+                            <label class="form-label" style="margin-bottom: 15px;"><i class="ri-wallet-3-line"></i> Konfigurasi Insentif & Denda</label>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                                <div>
+                                    <label class="form-label" style="font-size: 0.7rem;">Reward Early Bird</label>
+                                    <input type="number" id="setReward" class="form-input" placeholder="Rp">
+                                </div>
+                                <div>
+                                    <label class="form-label" style="font-size: 0.7rem;">Denda Terlambat / Menit</label>
+                                    <input type="number" id="setPenalty" class="form-input" placeholder="Rp">
+                                </div>
+                            </div>
                         </div>
+
+                        <!-- Group: Waktu -->
+                        <div style="background: rgba(255,255,255,0.03); padding: 20px; border-radius: 15px; border: 1px solid rgba(255,255,255,0.05);">
+                            <label class="form-label"><i class="ri-time-line"></i> Ambang Batas Waktu Reward</label>
+                            <div style="display: flex; align-items: center; gap: 15px;">
+                                <input type="number" id="setEarlyLimit" class="form-input" style="width: 100px;">
+                                <span style="font-size: 0.85rem; color: var(--text-muted);">Menit sebelum jam masuk resmi.</span>
+                            </div>
+                        </div>
+
+                        <button class="btn btn-primary" onclick="saveSettings()" style="width: 100%; height: 50px; font-weight: 600; font-size: 1rem; border-radius: 15px;">
+                            <i class="ri-save-3-fill"></i> SIMPAN PERUBAHAN
+                        </button>
                     </div>
-                    <div>
-                        <label class="form-label">Batas Early Bird (Menit Sebelum Masuk)</label>
-                        <input type="number" id="setEarlyLimit" class="form-input" placeholder="Contoh: 10">
-                        <small style="color:var(--text-muted); font-size:0.7rem; margin-top:5px; display:block;">Staf mendapat reward jika scan X menit sebelum jam masuk.</small>
-                    </div>
-                    <button class="btn btn-primary" onclick="saveSettings()" style="margin-top: 10px; width: 100%;"><i class="ri-save-3-line"></i> Simpan Semua Pengaturan</button>
                 </div>
             </section>
         </main>
