@@ -33,6 +33,12 @@ function updateTime() {
 
 function checkSystemStatus() { if (new Date().getDay() === 0) document.getElementById('offlineOverlay')?.classList.remove('hidden'); }
 
+function getSchedule(dayIndex) {
+    if (dayIndex === 0) return null; // Minggu OFF
+    if (dayIndex === 6) return { in: '08:00:00', out: '14:00:00' }; // Sabtu
+    return { in: '07:45:00', out: '17:00:00' }; // Sen-Jum
+}
+
 // --- ADMIN & TAB SYSTEM ---
 window.toggleAdminLogin = () => isAdmin ? (isAdmin = false, document.body.classList.remove('is-admin'), document.getElementById('adminBtn').innerHTML = '<i class="ri-admin-line"></i> Login Admin', switchTab('checkin')) : document.getElementById('loginModal').classList.toggle('hidden');
 window.processAdminLogin = () => {
