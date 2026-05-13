@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SmartAttend | Biometric Attendance</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar / Navigation -->
+        <nav class="sidebar">
+            <div class="logo">
+                <i class="ri-fingerprint-line"></i>
+                <span>SmartAttend</span>
+            </div>
+            <ul class="nav-links">
+                <li class="active"><a href="#"><i class="ri-scan-2-line"></i> Check In</a></li>
+                <li><a href="#"><i class="ri-dashboard-line"></i> Dashboard</a></li>
+                <li><a href="#"><i class="ri-group-line"></i> Employees</a></li>
+                <li><a href="#"><i class="ri-settings-4-line"></i> Settings</a></li>
+            </ul>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header class="topbar">
+                <div>
+                    <h1 class="page-title">Biometric Authentication</h1>
+                    <p class="page-subtitle">Align your face with the camera to check-in</p>
+                </div>
+                <div class="time-display" id="currentTime">00:00:00</div>
+            </header>
+
+            <div class="grid-layout">
+                <!-- Face Scan Area -->
+                <section class="scan-section glass-card">
+                    <div class="camera-container">
+                        <!-- Video feed will be injected here -->
+                        <video id="videoFeed" autoplay muted playsinline></video>
+                        <div class="scan-overlay"></div>
+                    </div>
+                    
+                    <div class="scan-status" id="scanStatus">
+                        <div class="status-icon loading">
+                            <i class="ri-loader-4-line"></i>
+                        </div>
+                        <div class="status-text">
+                            <h3>Initializing Camera...</h3>
+                            <p>Please wait while we load face models</p>
+                        </div>
+                    </div>
+
+                    <div class="actions">
+                        <button class="btn btn-primary" id="btnScan"><i class="ri-focus-3-line"></i> Manual Scan</button>
+                        <button class="btn btn-secondary" id="btnFingerprint"><i class="ri-fingerprint-fill"></i> Use Fingerprint</button>
+                    </div>
+                </section>
+
+                <!-- Logic Engine & Results -->
+                <section class="results-section">
+                    <div class="glass-card result-card">
+                        <h2>Recent Activity</h2>
+                        
+                        <!-- Simulated Result Box -->
+                        <div class="result-box hidden" id="resultBox">
+                            <div class="profile-info">
+                                <img src="https://i.pravatar.cc/150?img=11" alt="Employee" class="avatar" id="resultAvatar">
+                                <div>
+                                    <h3 id="resultName">Jane Doe</h3>
+                                    <p id="resultDept">Engineering</p>
+                                </div>
+                            </div>
+                            
+                            <div class="timing-logic">
+                                <div class="logic-row">
+                                    <span>Time In</span>
+                                    <strong id="resultTime">07:45 AM</strong>
+                                </div>
+                                <div class="logic-row">
+                                    <span>Status</span>
+                                    <span class="badge badge-success" id="resultBadge">Early Bird</span>
+                                </div>
+                                <div class="logic-row">
+                                    <span>Financial Effect</span>
+                                    <strong class="text-success" id="resultMoney">+ Rp 15,000</strong>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Placeholder when waiting -->
+                        <div class="waiting-state" id="waitingState">
+                            <i class="ri-time-line"></i>
+                            <p>Waiting for scan...</p>
+                        </div>
+                    </div>
+
+                    <!-- Mini Leaderboard -->
+                    <div class="glass-card leaderboard-card">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                            <h2 style="margin-bottom: 0;">Today's Discipline</h2>
+                            <button class="btn btn-secondary" id="btnExportPdf" style="padding: 0.5rem 1rem; font-size: 0.85rem;"><i class="ri-file-download-line"></i> Export PDF</button>
+                        </div>
+                        <ul class="leaderboard-list">
+                            <li>
+                                <div class="user-meta">
+                                    <img src="https://i.pravatar.cc/150?img=33" alt="Avatar">
+                                    <span>John Smith</span>
+                                </div>
+                                <span class="badge badge-success">07:42 AM</span>
+                            </li>
+                            <li>
+                                <div class="user-meta">
+                                    <img src="https://i.pravatar.cc/150?img=47" alt="Avatar">
+                                    <span>Sarah Lee</span>
+                                </div>
+                                <span class="badge badge-success">07:48 AM</span>
+                            </li>
+                            <li>
+                                <div class="user-meta">
+                                    <img src="https://i.pravatar.cc/150?img=12" alt="Avatar">
+                                    <span>Mike Doe</span>
+                                </div>
+                                <span class="badge badge-danger">08:15 AM</span>
+                            </li>
+                        </ul>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <!-- Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- jsPDF for Export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+    
+    <!-- Load face-api.js from CDN -->
+    <script defer src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.12/dist/face-api.js"></script>
+    <script defer src="app.js"></script>
+</body>
+</html>

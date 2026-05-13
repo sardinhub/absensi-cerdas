@@ -1,0 +1,45 @@
+-- Skema Database MVP Absensi Cerdas (Supabase / PostgreSQL)
+
+-- Aktifkan ekstensi uuid-ossp jika belum aktif
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- Tabel 1: employees
+-- Menyimpan data karyawan dan referensi biometrik wajah
+CREATE TABLE employees (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    employee_id VARCHAR(50) UNIQUE NOT NULL,
+    full_name VARCHAR(255) NOT NULL,
+    department VARCHAR(100),
+    face_descriptor TEXT, -- Menyimpan data vektor wajah (JSON array dari face-api.js)
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- Tabel 2: settings_config
+-- Konfigurasi jam kerja, reward, dan denda
+CREATE TABLE settings_config (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    work_start_time TIME NOT NULL DEFAULT '08:00:00',
+    early_bird_time TIME NOT NULL DEFAULT '07:50:00',
+    early_bird_reward DECIMAL(10, 2) DEFAULT 15000.00,
+    late_penalty_per_minute DECIMAL(10, 2) DEFAULT 1000.00,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- Insert default settings
+INSERT INTO settings_config (work_start_time, early_bird_time, early_bird_reward, late_penalty_per_minute) 
+VALUES ('08:00:00', '07:50:00', 15000.00, 1000.00);
+
+-- Tabel 3: attendance_logs
+-- Log absensi harian dengan kalkulasi reward dan denda
+CREATE TABLE attendance_logs (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    employee_id UUID REFERENCES employees(id) ON DELETE CASCADE,
+    check_in_time TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    status VARCHAR(50) NOT NULL, -- 'Early Bird', 'On-Time', 'Late'
+    reward_amount DECIMAL(10, 2) DEFAULT 0.00,
+    penalty_amount DECIMAL(10, 2) DEFAULT 0.00,
+    late_duration_minutes INT DEFAULT 0,
+    location_lat DECIMAL(10, 8),
+    location_lng DECIMAL(11, 8),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
