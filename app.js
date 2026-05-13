@@ -266,18 +266,54 @@ async function loadEmployees() {
 }
 
 async function loadHistory() {
-    const { data } = await supabaseClient.from('attendance_logs').select('check_in_time, status, type, notes, employees(full_name)').order('check_in_time', { ascending: false }).limit(50);
     const body = document.getElementById('historyTableBody');
-    body.innerHTML = '';
-    data.forEach(log => {
-        body.innerHTML += `<tr>
-            <td>${log.employees.full_name}</td>
-            <td>${new Date(log.check_in_time).toLocaleString()}</td>
-            <td>${log.type === 'in' ? 'Masuk' : 'Pulang'}</td>
-            <td>${log.status}</td>
-            <td>${log.notes || '-'}</td>
-        </tr>`;
-    });
+    if (!body) return;
+    
+    body.innerHTML = '<tr><td colspan="5" style="text-align:center;">Memuat data...</td></tr>';
+
+    try {
+        const { data, error } = await supabaseClient
+            .from('attendance_logs')
+            .select(`
+                check_in_time, 
+                status, 
+                type, 
+                notes, 
+                employees (full_name)
+            `)
+            .order('check_in_time', { ascending: false })
+            .limit(50);
+
+        if (error) {
+            console.error("Supabase Error:", error);
+            body.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--danger);">Error: ${error.message}</td></tr>`;
+            return;
+        }
+
+        if (!data || data.length === 0) {
+            body.innerHTML = '<tr><td colspan="5" style="text-align:center;">Belum ada riwayat absensi.</td></tr>';
+            return;
+        }
+
+        body.innerHTML = '';
+        data.forEach(log => {
+            const time = new Date(log.check_in_time).toLocaleString('id-ID');
+            const name = log.employees ? log.employees.full_name : "Tidak Dikenal";
+            const typeText = log.type === 'in' ? '<span style="color:#10b981;">Masuk</span>' : '<span style="color:#ef4444;">Pulang</span>';
+            const notes = log.notes || '-';
+            
+            body.innerHTML += `<tr>
+                <td><strong>${name}</strong></td>
+                <td>${time}</td>
+                <td>${typeText}</td>
+                <td><span class="badge">${log.status}</span></td>
+                <td style="font-size:0.8rem; color:var(--text-muted);">${notes}</td>
+            </tr>`;
+        });
+    } catch (e) {
+        console.error("System Error:", e);
+        body.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--danger);">Gagal sinkronisasi data.</td></tr>`;
+    }
 }
 
 function parseTime(timeStr) {
