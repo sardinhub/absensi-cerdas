@@ -15,6 +15,7 @@ let globalAttendanceData = [];
 
 // DOM Elements
 let timeDisplay, videoFeed, scanStatus, btnScan, scanOverlay, resultBox, waitingState;
+let videoRegister, registerSection, checkInGrid, employeeSelect;
 
 // --- INITIALIZATION ---
 document.addEventListener('DOMContentLoaded', () => {
@@ -26,6 +27,12 @@ document.addEventListener('DOMContentLoaded', () => {
     scanOverlay = document.querySelector('.scan-overlay');
     resultBox = document.getElementById('resultBox');
     waitingState = document.getElementById('waitingState');
+    
+    // New Registration Elements
+    videoRegister = document.getElementById('videoRegister');
+    registerSection = document.getElementById('registerSection');
+    checkInGrid = document.querySelector('.grid-layout');
+    employeeSelect = document.getElementById('employeeSelect');
 
     // Init Supabase
     try {
@@ -234,3 +241,89 @@ function initOtherEvents() {
         document.querySelector('.main-content').addEventListener('click', () => sidebar.classList.remove('open'));
     }
 }
+
+// --- TAB SWITCHING & REGISTRATION ---
+window.switchTab = async function(tab) {
+    const tabCheckIn = document.getElementById('tabCheckIn');
+    const tabEmployees = document.getElementById('tabEmployees');
+    
+    if (tab === 'register') {
+        tabCheckIn.classList.remove('active');
+        tabEmployees.classList.add('active');
+        checkInGrid.classList.add('hidden');
+        registerSection.classList.remove('hidden');
+        
+        await startRegistrationCamera();
+        loadEmployeesToSelect();
+    } else {
+        tabCheckIn.classList.add('active');
+        tabEmployees.classList.remove('active');
+        checkInGrid.classList.remove('hidden');
+        registerSection.classList.add('hidden');
+        
+        if (videoRegister.srcObject) {
+            videoRegister.srcObject.getTracks().forEach(t => t.stop());
+        }
+    }
+};
+
+async function startRegistrationCamera() {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
+        videoRegister.srcObject = stream;
+        
+        const api = window.faceapi || faceapi;
+        const MODEL_URL = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights';
+        await Promise.all([
+            api.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+            api.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+            api.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
+        ]);
+    } catch (e) {
+        alert("Gagal kamera registrasi: " + e.message);
+    }
+}
+
+async function loadEmployeesToSelect() {
+    const { data } = await supabaseClient.from('employees').select('id, full_name, employee_id');
+    employeeSelect.innerHTML = '<option value="">-- Pilih Nama Staf --</option>';
+    if(data) {
+        data.forEach(emp => {
+            employeeSelect.innerHTML += `<option value="${emp.id}">${emp.full_name} (${emp.employee_id || '-'})</option>`;
+        });
+    }
+}
+
+window.handleRegisterFace = async function() {
+    const empId = employeeSelect.value;
+    if (!empId) return alert("Pilih staf terlebih dahulu!");
+    
+    const btn = document.getElementById('btnCaptureFace');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="ri-loader-4-line loading"></i> Memproses...';
+
+    try {
+        const api = window.faceapi || faceapi;
+        const detections = await api.detectSingleFace(videoRegister, new api.TinyFaceDetectorOptions())
+                                    .withFaceLandmarks()
+                                    .withFaceDescriptor();
+
+        if (!detections) {
+            alert("Wajah tidak terdeteksi!");
+        } else {
+            const descriptor = Array.from(detections.descriptor);
+            const { error } = await supabaseClient
+                .from('employees')
+                .update({ face_embedding: descriptor })
+                .eq('id', empId);
+            
+            if (error) throw error;
+            alert("BERHASIL! Wajah staf telah didaftarkan.");
+        }
+    } catch (e) {
+        alert("Gagal: " + e.message);
+    }
+    
+    btn.disabled = false;
+    btn.innerHTML = '<i class="ri-camera-lens-line"></i> Daftarkan Wajah';
+};

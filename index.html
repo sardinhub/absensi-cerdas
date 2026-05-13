@@ -23,9 +23,9 @@
                 <span>SmartAttend</span>
             </div>
             <ul class="nav-links">
-                <li class="active"><a href="#"><i class="ri-scan-2-line"></i> Check In</a></li>
-                <li><a href="#"><i class="ri-dashboard-line"></i> Dashboard</a></li>
-                <li><a href="#"><i class="ri-group-line"></i> Employees</a></li>
+                <li class="active" id="tabCheckIn"><a href="javascript:void(0)" onclick="switchTab('checkin')"><i class="ri-scan-2-line"></i> Check In</a></li>
+                <li id="tabEmployees"><a href="javascript:void(0)" onclick="switchTab('register')"><i class="ri-group-line"></i> Register Face</a></li>
+                <li><a href="#"><i class="ri-dashboard-line"></i> History</a></li>
                 <li><a href="#"><i class="ri-settings-4-line"></i> Settings</a></li>
             </ul>
         </nav>
@@ -135,6 +135,28 @@
                                 <span class="badge badge-danger">08:15 AM</span>
                             </li>
                         </ul>
+                    </div>
+                </section>
+                <!-- Registration Section (Hidden by default) -->
+                <section class="scan-section glass-card hidden" id="registerSection">
+                    <div style="margin-bottom: 20px;">
+                        <h2 style="margin-bottom: 5px;">Face Registration</h2>
+                        <p style="color: var(--text-muted); font-size: 0.9rem;">Daftarkan wajah karyawan ke database</p>
+                    </div>
+                    
+                    <div class="camera-container" style="height: 300px;">
+                        <video id="videoRegister" autoplay muted playsinline style="width: 100%; height: 100%; object-fit: cover; border-radius: 15px;"></video>
+                    </div>
+
+                    <div style="margin: 20px 0;">
+                        <label style="display: block; margin-bottom: 8px; font-size: 0.9rem; color: var(--text-muted);">Pilih Karyawan</label>
+                        <select id="employeeSelect" style="width: 100%; padding: 12px; border-radius: 10px; background: rgba(255,255,255,0.05); color: white; border: 1px solid rgba(255,255,255,0.1);">
+                            <option value="">-- Sedang memuat data --</option>
+                        </select>
+                    </div>
+
+                    <div class="actions">
+                        <button class="btn btn-primary" id="btnCaptureFace" onclick="handleRegisterFace()"><i class="ri-camera-lens-line"></i> Daftarkan Wajah</button>
                     </div>
                 </section>
             </div>
