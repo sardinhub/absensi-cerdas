@@ -265,56 +265,79 @@ async function loadReport() {
     const body = document.getElementById('reportTableBody');
     if (!body) return;
     
-    body.innerHTML = '<tr><td colspan="5" style="text-align:center;">Memuat laporan...</td></tr>';
+    body.innerHTML = '<tr><td colspan="8" style="text-align:center;">Memuat laporan...</td></tr>';
 
     let query = supabaseClient.from('attendance_logs').select('*, employees(full_name)');
     if (empFilter !== 'all') query = query.eq('employee_id', empFilter);
 
     const startOfToday = new Date(); startOfToday.setHours(0,0,0,0);
-    
-    if (periodFilter === 'daily') {
-        query = query.gte('check_in_time', startOfToday.toISOString());
-    } else if (periodFilter === 'weekly') {
+    if (periodFilter === 'daily') query = query.gte('check_in_time', startOfToday.toISOString());
+    else if (periodFilter === 'weekly') {
         const first = startOfToday.getDate() - startOfToday.getDay();
-        const startOfWeek = new Date(startOfToday.setDate(first));
+        const startOfWeek = new Date(new Date().setDate(first)); startOfWeek.setHours(0,0,0,0);
         query = query.gte('check_in_time', startOfWeek.toISOString());
     } else if (periodFilter === 'monthly') {
         const startOfMonth = new Date(startOfToday.getFullYear(), startOfToday.getMonth(), 1);
         query = query.gte('check_in_time', startOfMonth.toISOString());
     }
 
-    const { data, error } = await query.order('check_in_time', { ascending: false });
-    
-    if (error) {
-        body.innerHTML = `<tr><td colspan="5" style="text-align:center; color:#ef4444;">Error: ${error.message}</td></tr>`;
-        return;
-    }
+    const { data, error } = await query.order('check_in_time', { ascending: true });
+    if (error) return body.innerHTML = `<tr><td colspan="8">Error: ${error.message}</td></tr>`;
 
-    if (!data || data.length === 0) {
-        body.innerHTML = '<tr><td colspan="5" style="text-align:center;">Tidak ada data untuk periode ini.</td></tr>';
+    // Grouping by Date and Employee
+    const grouped = {};
+    data?.forEach(log => {
+        const date = new Date(log.check_in_time).toLocaleDateString('en-CA'); // YYYY-MM-DD
+        const key = `${date}_${log.employee_id}`;
+        if (!grouped[key]) {
+            grouped[key] = { 
+                name: log.employees?.full_name || 'N/A', 
+                date: new Date(log.check_in_time).toLocaleDateString('id-ID'),
+                in: '-', out: '-', late: 0, status: log.status, reward: 0, penalty: 0 
+            };
+        }
+        const time = new Date(log.check_in_time).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+        if (log.type === 'in') {
+            grouped[key].in = time;
+            grouped[key].late = log.late_duration_minutes || 0;
+            grouped[key].status = log.status;
+            grouped[key].reward = log.reward_amount || 0;
+            grouped[key].penalty = log.penalty_amount || 0;
+        } else if (log.type === 'out') {
+            grouped[key].out = time;
+        } else if (log.type === 'manual') {
+            grouped[key].status = log.status;
+            grouped[key].in = log.status; // Shows 'Sakit', 'Ijin', etc. in 'Masuk' col
+        }
+    });
+
+    const rows = Object.values(grouped).reverse();
+    if (rows.length === 0) {
+        body.innerHTML = '<tr><td colspan="8" style="text-align:center;">Tidak ada data.</td></tr>';
         updateReportStats(0, 0, 0, 0, 0);
         return;
     }
 
-    let total = data.length, onTime = 0, late = 0, tReward = 0, tPenalty = 0;
+    let onTime = 0, late = 0, tReward = 0, tPenalty = 0;
     body.innerHTML = '';
-    
-    data.forEach(log => {
-        if (log.status === 'On-Time' || log.status === 'Early Bird') onTime++;
-        if (log.status === 'Late') late++;
-        tReward += (log.reward_amount || 0);
-        tPenalty += (log.penalty_amount || 0);
+    rows.forEach(row => {
+        if (row.status === 'On-Time' || row.status === 'Early Bird') onTime++;
+        if (row.status === 'Late') late++;
+        tReward += row.reward; tPenalty += row.penalty;
 
         body.innerHTML += `<tr>
-            <td>${log.employees?.full_name || 'N/A'}</td>
-            <td>${new Date(log.check_in_time).toLocaleDateString('id-ID')}</td>
-            <td><span class="badge">${log.status}</span></td>
-            <td style="color:#10b981;">Rp ${(log.reward_amount || 0).toLocaleString()}</td>
-            <td style="color:#ef4444;">Rp ${(log.penalty_amount || 0).toLocaleString()}</td>
+            <td><strong>${row.name}</strong></td>
+            <td>${row.date}</td>
+            <td>${row.in}</td>
+            <td>${row.out}</td>
+            <td>${row.late > 0 ? `<span style="color:#ef4444;">${row.late} Menit</span>` : '-'}</td>
+            <td><span class="badge">${row.status}</span></td>
+            <td style="color:#10b981;">Rp ${row.reward.toLocaleString()}</td>
+            <td style="color:#ef4444;">Rp ${row.penalty.toLocaleString()}</td>
         </tr>`;
     });
 
-    updateReportStats(total, onTime, late, tReward, tPenalty);
+    updateReportStats(rows.length, onTime, late, tReward, tPenalty);
 }
 
 function updateReportStats(total, onTime, late, reward, penalty) {
