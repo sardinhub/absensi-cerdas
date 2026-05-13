@@ -86,10 +86,13 @@ window.initCamera = async function(mode) {
 
 // --- CRUD STAFF ---
 async function loadStaffTable() {
-    const { data } = await supabaseClient.from('employees').select('id, employee_id, full_name, position');
+    const { data } = await supabaseClient.from('employees').select('id, employee_id, full_name, position, profile_picture');
     const body = document.getElementById('staffTableBody'); body.innerHTML = '';
     data?.forEach(emp => {
-        body.innerHTML += `<tr><td>${emp.employee_id}</td><td>${emp.full_name}</td><td>${emp.position}</td>
+        const photo = emp.profile_picture ? `<img src="${emp.profile_picture}" style="width:45px; height:45px; border-radius:50%; object-fit:cover; border:2px solid rgba(255,255,255,0.1);">` : '<div style="width:45px; height:45px; border-radius:50%; background:rgba(255,255,255,0.05); display:flex; align-items:center; justify-content:center;"><i class="ri-user-line"></i></div>';
+        body.innerHTML += `<tr>
+            <td style="width:60px; padding:10px;">${photo}</td>
+            <td>${emp.employee_id}</td><td><strong>${emp.full_name}</strong></td><td>${emp.position}</td>
             <td><button class="btn-icon btn-edit" onclick="openEditStaff('${emp.id}','${emp.full_name}','${emp.position}')"><i class="ri-edit-line"></i></button>
             <button class="btn-icon btn-delete" onclick="deleteStaff('${emp.id}')"><i class="ri-delete-bin-line"></i></button></td></tr>`;
     });
@@ -235,17 +238,46 @@ window.saveSettings = async function() {
     alert("Tersimpan!"); loadSettings();
 };
 window.closeModals = () => document.querySelectorAll('.modal').forEach(m => m.classList.add('hidden'));
+
 window.handleFullRegistration = async function() {
     const id = document.getElementById('regId').value, name = document.getElementById('regName').value, pos = document.getElementById('regPosition').value, birth = document.getElementById('regBirth').value;
-    if (!id || !name || !pos || !birth) return alert("Lengkapi!");
+    if (!id || !name || !pos || !birth) return alert("Lengkapi data!");
+    
     try {
-        const api = window.faceapi || faceapi, det = await api.detectSingleFace(videoRegister, new api.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
-        if (!det) return alert("Wajah tidak terdeteksi!");
+        const api = window.faceapi || faceapi;
+        const det = await api.detectSingleFace(videoRegister, new api.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
+        if (!det) return alert("Wajah tidak terdeteksi! Pastikan cahaya cukup.");
+        
         if (allEmployees.find(e => e.face_embedding && api.euclideanDistance(det.descriptor, new Float32Array(e.face_embedding)) < 0.55)) return alert("Wajah sudah terdaftar!");
-        await supabaseClient.from('employees').insert([{ employee_id: id, full_name: name, position: pos, birth_date: birth, face_embedding: Array.from(det.descriptor) }]);
-        alert("Sukses!"); loadEmployees(); switchTab('checkin');
-    } catch (e) { alert(e.message); }
+
+        // CAPTURE PHOTO
+        const canvas = document.createElement('canvas');
+        canvas.width = videoRegister.videoWidth;
+        canvas.height = videoRegister.videoHeight;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(videoRegister, 0, 0, canvas.width, canvas.height);
+        const photoBase64 = canvas.toDataURL('image/png');
+
+        const { error } = await supabaseClient.from('employees').insert([{ 
+            employee_id: id, 
+            full_name: name, 
+            position: pos, 
+            birth_date: birth, 
+            face_embedding: Array.from(det.descriptor),
+            profile_picture: photoBase64 
+        }]);
+
+        if (error) throw error;
+
+        alert("Registrasi Sukses! Foto dan Wajah telah disimpan.");
+        loadEmployees(); 
+        switchTab('checkin');
+    } catch (e) { 
+        alert("Gagal menyimpan: " + e.message); 
+        console.error(e);
+    }
 };
+
 window.confirmEarlyOut = async function() {
     const r = document.getElementById('earlyReason').value, p = document.getElementById('adminApprovePass').value;
     if (!r || p !== CONFIG.adminPassword) return alert("Gagal!");
