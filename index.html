@@ -147,7 +147,32 @@
         </main>
     </div>
 
-    <div id="debug-version" style="position:fixed; bottom:5px; right:5px; font-size:10px; color:rgba(255,255,255,0.3); z-index:9999;">v4.0.0-BIO</div>
+    <div id="debug-version" style="position:fixed; bottom:5px; right:5px; font-size:10px; color:rgba(255,255,255,0.3); z-index:9999;">v4.1.0-ADMIN</div>
+
+    <!-- Modal Pulang Cepat -->
+    <div id="earlyOutModal" class="hidden" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:10000; display:flex; align-items:center; justify-content:center;">
+        <div class="glass-card" style="max-width:400px; padding:30px; text-align:center;">
+            <i class="ri-error-warning-line" style="font-size:3rem; color:var(--danger);"></i>
+            <h2 style="margin:15px 0;">Jam Pulang Belum Aktif</h2>
+            <p style="color:var(--text-muted); margin-bottom:20px;">Anda ingin pulang lebih awal?</p>
+            
+            <div style="text-align:left; gap:10px; display:grid;">
+                <div>
+                    <label class="form-label">Alasan Pulang Cepat</label>
+                    <textarea id="earlyReason" class="form-input" style="height:80px;"></textarea>
+                </div>
+                <div>
+                    <label class="form-label">Password Admin (Approval)</label>
+                    <input type="password" id="adminPass" class="form-input">
+                </div>
+            </div>
+
+            <div style="margin-top:25px; display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                <button class="btn btn-secondary" onclick="closeEarlyModal()">Batal</button>
+                <button class="btn btn-primary" onclick="confirmEarlyOut()" style="background:var(--danger); border-color:var(--danger);">YA, Pulang</button>
+            </div>
+        </div>
+    </div>
     
     <!-- Supabase -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>

@@ -4,6 +4,8 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 const CONFIG = {
     workStartTime: '08:00:00',
+    workEndTime: '17:00:00', // Jam pulang aktif
+    adminPassword: '123',     // Password admin untuk approval
     earlyBirdTime: '07:50:00',
     earlyBirdReward: 15000,
     latePenaltyPerMinute: 1000
@@ -152,46 +154,86 @@ window.handleAttendance = async function(type) {
             return;
         }
 
-        // VERIFIKASI WAJAH (Euclidean Distance)
         const storedDescriptor = new Float32Array(employee.face_embedding);
         const distance = api.euclideanDistance(detections.descriptor, storedDescriptor);
         
-        console.log("Distance:", distance);
-
         if (distance > 0.6) {
             alert("Wajah TIDAK COCOK! Pastikan itu adalah Anda.");
             return;
         }
 
-        // Jika cocok, catat absensi
-        const now = new Date();
-        const logic = calculateAttendanceLogic(now, type);
-        
-        const { error } = await supabaseClient.from('attendance_logs').insert([{
-            employee_id: empId,
-            check_in_time: now.toISOString(),
-            status: logic.status,
-            type: type, // Pastikan kolom ini ada di database
-            reward_amount: logic.reward,
-            penalty_amount: logic.penalty,
-            late_duration_minutes: logic.diffMinutes
-        }]);
+        // VALIDASI JAM PULANG
+        if (type === 'out') {
+            const now = new Date();
+            const workEnd = parseTime(CONFIG.workEndTime);
+            if (now < workEnd) {
+                // Tampilkan Modal Pulang Cepat
+                window.pendingAttendanceData = { empId, employee, type, now };
+                document.getElementById('earlyOutModal').classList.remove('hidden');
+                document.getElementById('earlyOutModal').style.display = 'flex';
+                return;
+            }
+        }
 
-        if (error) throw error;
-
-        document.getElementById('resultName').textContent = employee.full_name;
-        document.getElementById('resultDept').textContent = employee.position || "-";
-        document.getElementById('resultTime').textContent = now.toLocaleTimeString();
-        document.getElementById('resultBadge').textContent = logic.status;
-        document.getElementById('resultBadge').className = 'badge ' + (logic.status === 'Late' ? 'badge-danger' : 'badge-success');
-        document.getElementById('resultMoney').textContent = type === 'in' ? (logic.reward > 0 ? "+ " + logic.reward : logic.penalty > 0 ? "- " + logic.penalty : "Normal") : "Berhasil Pulang";
-        
-        waitingState.classList.add('hidden');
-        resultBox.classList.remove('hidden');
-        fetchLeaderboard();
+        // PROSES ABSENSI NORMAL
+        await completeAttendanceProcess(empId, employee, type, new Date());
 
     } catch (e) { alert("Error: " + e.message); }
 };
+
+window.closeEarlyModal = function() {
+    document.getElementById('earlyOutModal').classList.add('hidden');
+    document.getElementById('earlyOutModal').style.display = 'none';
+};
+
+window.confirmEarlyOut = async function() {
+    const reason = document.getElementById('earlyReason').value;
+    const pass = document.getElementById('adminPass').value;
+    
+    if (!reason) return alert("Alasan harus diisi!");
+    if (pass !== CONFIG.adminPassword) return alert("Password Admin SALAH!");
+
+    const { empId, employee, type, now } = window.pendingAttendanceData;
+    
+    // Tambahkan catatan alasan ke database (nantinya bisa disimpan ke kolom notes)
+    await completeAttendanceProcess(empId, employee, type, now, reason);
+    
+    closeEarlyModal();
+    alert("Izin Admin Diterima. Silakan Pulang.");
+};
+
+async function completeAttendanceProcess(empId, employee, type, now, reason = "") {
+    const logic = calculateAttendanceLogic(now, type);
+    const timeStr = now.toLocaleTimeString();
+
+    const { error } = await supabaseClient.from('attendance_logs').insert([{
+        employee_id: empId,
+        check_in_time: now.toISOString(),
+        status: logic.status,
+        type: type,
+        reward_amount: logic.reward,
+        penalty_amount: logic.penalty,
+        late_duration_minutes: logic.diffMinutes,
+        notes: reason // Simpan alasan jika ada
+    }]);
+
+    if (error) throw error;
+
+    // Pesan Sukses Sesuai Permintaan
+    const statusText = type === 'in' ? "Masuk" : "Pulang";
+    alert(`Wajah terdeteksi atas nama ${employee.full_name} ${statusText} pukul ${timeStr}`);
+
+    document.getElementById('resultName').textContent = employee.full_name;
+    document.getElementById('resultDept').textContent = employee.position || "-";
+    document.getElementById('resultTime').textContent = timeStr;
+    document.getElementById('resultBadge').textContent = logic.status;
+    document.getElementById('resultBadge').className = 'badge ' + (logic.status === 'Late' ? 'badge-danger' : 'badge-success');
+    document.getElementById('resultMoney').textContent = type === 'in' ? (logic.reward > 0 ? "+ " + logic.reward : logic.penalty > 0 ? "- " + logic.penalty : "Normal") : "Berhasil Pulang";
+    
+    waitingState.classList.add('hidden');
+    resultBox.classList.remove('hidden');
+    fetchLeaderboard();
+}
 
 function calculateAttendanceLogic(now, type) {
     if (type === 'out') return { status: 'Pulang', reward: 0, penalty: 0, diffMinutes: 0 };
