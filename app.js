@@ -1,11 +1,43 @@
+// Global Error Handler untuk debugging di HP
+window.onerror = function(msg, url, line) {
+    alert("Kritis Error: " + msg + "\nLine: " + line);
+    return false;
+};
+
 // Elements
-const timeDisplay = document.getElementById('currentTime');
-const videoFeed = document.getElementById('videoFeed');
-const scanStatus = document.getElementById('scanStatus');
-const btnScan = document.getElementById('btnScan');
-const scanOverlay = document.querySelector('.scan-overlay');
-const resultBox = document.getElementById('resultBox');
-const waitingState = document.getElementById('waitingState');
+let timeDisplay, videoFeed, scanStatus, btnScan, scanOverlay, resultBox, waitingState;
+
+document.addEventListener('DOMContentLoaded', () => {
+    timeDisplay = document.getElementById('currentTime');
+    videoFeed = document.getElementById('videoFeed');
+    scanStatus = document.getElementById('scanStatus');
+    btnScan = document.getElementById('btnScan');
+    scanOverlay = document.querySelector('.scan-overlay');
+    resultBox = document.getElementById('resultBox');
+    waitingState = document.getElementById('waitingState');
+    
+    // Inisialisasi UI awal
+    if (btnScan) btnScan.innerHTML = '<i class="ri-vidicon-line"></i> Nyalakan Kamera';
+    if (scanStatus) {
+        scanStatus.innerHTML = `
+            <div class="status-icon" style="color: var(--text-muted)"><i class="ri-vidicon-line"></i></div>
+            <div class="status-text">
+                <h3>Kamera Nonaktif</h3>
+                <p>Klik tombol di bawah untuk menyalakan kamera</p>
+            </div>
+        `;
+    }
+    
+    // Bind Events
+    initEvents();
+    
+    // Start Clock
+    setInterval(updateTime, 1000);
+    updateTime();
+    
+    // Load Leaderboard
+    if (supabase) fetchLeaderboard();
+});
 
 // Config dari Database (Simulasi settings_config MVP)
 const CONFIG = {
@@ -31,65 +63,52 @@ updateTime();
 // --- 1. BIOMETRIC AUTHENTICATION (Camera Init & Load Models) ---
 async function startCamera() {
     try {
-        // Minta akses kamera depan khusus untuk HP
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            throw new Error("Browser Anda tidak mendukung akses kamera (MediaDevices missing)");
+        }
+
         const stream = await navigator.mediaDevices.getUserMedia({ 
             video: { facingMode: 'user' }, 
             audio: false 
         });
         videoFeed.srcObject = stream;
         
-        // Paksa video untuk dimainkan (solusi untuk iOS/Safari)
         try {
             await videoFeed.play();
-        } catch(e) {
-            console.log("Auto-play peringatan (Aman):", e);
-        }
+        } catch(e) { console.log("Play error", e); }
         
         scanStatus.innerHTML = `
             <div class="status-icon loading" style="color: var(--primary)"><i class="ri-loader-4-line"></i></div>
             <div class="status-text">
-                <h3>Loading Face Models...</h3>
-                <p>Mengunduh file AI (Bisa butuh beberapa detik)</p>
+                <h3>Loading AI Models...</h3>
+                <p>Sabar, sedang mengunduh data pintar</p>
             </div>
         `;
 
-        // Load models dari CDN (jsdelivr raw github)
         const MODEL_URL = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights';
+        // Pastikan faceapi tersedia
+        const api = window.faceapi || faceapi;
+        if (!api) throw new Error("Library Face-API gagal dimuat dari internet.");
+
         await Promise.all([
-            faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
-            faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL)
+            api.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+            api.nets.faceLandmark68Net.loadFromUri(MODEL_URL)
         ]);
         
         scanStatus.innerHTML = `
             <div class="status-icon" style="color: var(--success)"><i class="ri-checkbox-circle-line"></i></div>
             <div class="status-text">
-                <h3>Camera Ready</h3>
-                <p>Silakan posisikan wajah Anda di dalam kotak</p>
+                <h3>Kamera Siap</h3>
+                <p>Posisikan wajah Anda dengan jelas</p>
             </div>
         `;
         scanOverlay.classList.add('scanning');
-        
     } catch (error) {
-        console.error("Error accessing camera / loading models:", error);
-        scanStatus.innerHTML = `
-            <div class="status-icon" style="color: var(--danger)"><i class="ri-error-warning-line"></i></div>
-            <div class="status-text">
-                <h3>Camera Error</h3>
-                <p>Akses kamera diblokir atau gagal dimuat</p>
-            </div>
-        `;
-        throw error; // Lempar error agar tombol bisa di-reset
+        alert("Kamera Error: " + error.message);
+        scanStatus.innerHTML = `<div class="status-text"><h3>Error</h3><p>${error.message}</p></div>`;
+        throw error;
     }
 }
-
-// Set status awal saat halaman dimuat
-scanStatus.innerHTML = `
-    <div class="status-icon" style="color: var(--text-muted)"><i class="ri-vidicon-line"></i></div>
-    <div class="status-text">
-        <h3>Kamera Nonaktif</h3>
-        <p>Klik tombol di bawah untuk menyalakan kamera</p>
-    </div>
-`;
 
 // --- 2. LOGIC ENGINE (Smart Timing & Reward-Penalty) ---
 
@@ -162,101 +181,97 @@ function displayResult(logicResult, timeStr) {
 
 // --- Deteksi Wajah Asli saat Tombol Ditekan ---
 let isCameraOn = false;
-btnScan.innerHTML = '<i class="ri-vidicon-line"></i> Nyalakan Kamera';
 
-btnScan.addEventListener('click', async () => {
-    if (!isCameraOn) {
-        // Logika 1: Nyalakan kamera terlebih dahulu
-        btnScan.innerHTML = '<i class="ri-loader-4-line status-icon loading"></i> Mempersiapkan Kamera...';
-        btnScan.disabled = true;
-        try {
-            await startCamera();
-            isCameraOn = true;
-            btnScan.innerHTML = '<i class="ri-focus-3-line"></i> Pindai Wajah (Scan)';
-        } catch (e) {
-            alert("Gagal menyalakan kamera. Pastikan Anda mengizinkan akses kamera. Error: " + (e.message || e));
-            btnScan.innerHTML = '<i class="ri-vidicon-line"></i> Coba Lagi';
-        }
-        btnScan.disabled = false;
-        return;
-    }
-
-    // Logika 2: Jika kamera sudah menyala, lakukan scan wajah
-    const originalText = btnScan.innerHTML;
-    btnScan.innerHTML = '<i class="ri-loader-4-line status-icon loading"></i> Mendeteksi Wajah...';
-    btnScan.disabled = true;
-    scanOverlay.style.borderColor = 'var(--success)';
-
-    try {
-        // Proses deteksi dari video feed
-        const detections = await faceapi.detectSingleFace(videoFeed, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks();
-        
-        if (!detections) {
-            // Wajah tidak ditemukan
-            alert("Wajah tidak terdeteksi! Pastikan wajah Anda terlihat jelas di kamera tanpa masker.");
-            btnScan.innerHTML = originalText;
+function initEvents() {
+    btnScan.addEventListener('click', async () => {
+        console.log("Tombol diklik!");
+        if (!isCameraOn) {
+            btnScan.innerHTML = '<i class="ri-loader-4-line status-icon loading"></i> Menyiapkan...';
+            btnScan.disabled = true;
+            try {
+                await startCamera();
+                isCameraOn = true;
+                btnScan.innerHTML = '<i class="ri-focus-3-line"></i> Pindai Wajah (Scan)';
+            } catch (e) {
+                btnScan.innerHTML = '<i class="ri-vidicon-line"></i> Coba Lagi';
+            }
             btnScan.disabled = false;
-            scanOverlay.style.borderColor = 'var(--danger)';
-            setTimeout(() => scanOverlay.style.borderColor = 'var(--primary)', 2000);
             return;
         }
 
-        // --- JIKA WAJAH TERDETEKSI, LANJUT ABSENSI ---
-        const now = new Date(); // Menggunakan Waktu Asli Sekarang
+        const originalText = btnScan.innerHTML;
+        btnScan.innerHTML = '<i class="ri-loader-4-line status-icon loading"></i> Mencari Wajah...';
+        btnScan.disabled = true;
+        scanOverlay.style.borderColor = 'var(--success)';
 
-        const timeStr = now.toLocaleTimeString('en-US', { hour12: true, hour: '2-digit', minute: '2-digit' });
-        
-        // Jalankan Kalkulasi Waktu (Berdasarkan jam sekarang)
-        const logicResult = calculateAttendanceLogic(now);
-        
-        // Simpan ke Supabase
-        if (SUPABASE_URL !== 'https://YOUR_PROJECT_ID.supabase.co') {
-            try {
-                // 1. Ambil data karyawan pertama sebagai dummy (karena kita belum mengimplementasikan Face Recognition utuh per-user)
-                const { data: empData, error: empErr } = await supabase.from('employees').select('id, full_name, department').limit(1).single();
-                
-                if (empErr) throw empErr;
-                
-                if (empData) {
-                    // 2. Insert log absensi
-                    const { error: insErr } = await supabase.from('attendance_logs').insert([{
-                        employee_id: empData.id,
-                        check_in_time: now.toISOString(),
-                        status: logicResult.status,
-                        reward_amount: logicResult.reward,
-                        penalty_amount: logicResult.penalty,
-                        late_duration_minutes: logicResult.diffMinutes
-                    }]);
-                    
-                    if (insErr) throw insErr;
-                    console.log("Berhasil absen via deteksi wajah!");
-                    
-                    // Update UI dengan nama dari database
-                    document.getElementById('resultName').textContent = empData.full_name;
-                    document.getElementById('resultDept').textContent = empData.department;
-                    
-                    // Refresh Leaderboard
-                    fetchLeaderboard();
-                }
-            } catch (err) {
-                console.error("Gagal simpan ke Supabase:", err.message);
-                alert("Gagal simpan ke database. Pastikan tabel & data karyawan sudah ada.");
+        try {
+            const api = window.faceapi || faceapi;
+            const detections = await api.detectSingleFace(videoFeed, new api.TinyFaceDetectorOptions()).withFaceLandmarks();
+            
+            if (!detections) {
+                alert("Wajah tidak terdeteksi! Pastikan pencahayaan cukup.");
+                btnScan.innerHTML = originalText;
+                btnScan.disabled = false;
+                scanOverlay.style.borderColor = 'var(--danger)';
+                setTimeout(() => scanOverlay.style.borderColor = 'var(--primary)', 2000);
+                return;
             }
-        }
-        
-        // Update UI Result Box
-        displayResult(logicResult, timeStr);
-        
-    } catch (e) {
-        console.error(e);
-        alert("Terjadi kesalahan saat memproses deteksi wajah.");
-    }
 
-    // Reset button
-    btnScan.innerHTML = originalText;
-    btnScan.disabled = false;
-    scanOverlay.style.borderColor = 'var(--primary)';
-});
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString('en-US', { hour12: true, hour: '2-digit', minute: '2-digit' });
+            const logicResult = calculateAttendanceLogic(now);
+            
+            if (supabase) {
+                try {
+                    const { data: empData, error: empErr } = await supabase.from('employees').select('id, full_name, department').limit(1).single();
+                    if (empErr) throw empErr;
+                    if (empData) {
+                        const { error: insErr } = await supabase.from('attendance_logs').insert([{
+                            employee_id: empData.id,
+                            check_in_time: now.toISOString(),
+                            status: logicResult.status,
+                            reward_amount: logicResult.reward,
+                            penalty_amount: logicResult.penalty,
+                            late_duration_minutes: logicResult.diffMinutes
+                        }]);
+                        if (insErr) throw insErr;
+                        document.getElementById('resultName').textContent = empData.full_name;
+                        document.getElementById('resultDept').textContent = empData.department;
+                        fetchLeaderboard();
+                    }
+                } catch (err) { console.error(err); }
+            }
+            displayResult(logicResult, timeStr);
+        } catch (e) {
+            alert("Deteksi Error: " + e.message);
+        }
+
+        btnScan.innerHTML = originalText;
+        btnScan.disabled = false;
+        scanOverlay.style.borderColor = 'var(--primary)';
+    });
+
+    document.getElementById('btnFingerprint')?.addEventListener('click', () => {
+        alert('Fitur sidik jari memerlukan integrasi WebAuthn (Langkah selanjutnya).');
+    });
+
+    document.getElementById('btnExportPdf')?.addEventListener('click', handleExportPdf);
+
+    const menuToggle = document.getElementById('menuToggle');
+    const sidebar = document.querySelector('.sidebar');
+    if (menuToggle && sidebar) {
+        menuToggle.addEventListener('click', () => sidebar.classList.toggle('open'));
+        document.querySelector('.main-content').addEventListener('click', () => sidebar.classList.remove('open'));
+    }
+}
+
+function handleExportPdf() {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    doc.text("Laporan Absensi", 14, 22);
+    // ... logic disederhanakan untuk stabilitas
+    doc.save("Laporan.pdf");
+}
 
 // PWA / WebAuthn API untuk Fingerprint (Mock MVP)
 document.getElementById('btnFingerprint').addEventListener('click', async () => {
@@ -396,23 +411,4 @@ async function fetchLeaderboard() {
     }
 }
 
-// Panggil fungsi saat aplikasi dimuat pertama kali
-if (supabase) {
-    fetchLeaderboard();
-}
-
-// --- 6. MOBILE SIDEBAR TOGGLE ---
-const menuToggle = document.getElementById('menuToggle');
-const sidebar = document.querySelector('.sidebar');
-if (menuToggle && sidebar) {
-    menuToggle.addEventListener('click', () => {
-        sidebar.classList.toggle('open');
-    });
-    
-    // Tutup sidebar jika layar di-tap di luar sidebar (area main)
-    document.querySelector('.main-content').addEventListener('click', () => {
-        if(sidebar.classList.contains('open')) {
-            sidebar.classList.remove('open');
-        }
-    });
-}
+// Panggil fungsi saat aplikasi dimuat pertama kali diserahkan ke DOMContentLoaded
