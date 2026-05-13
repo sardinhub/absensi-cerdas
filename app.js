@@ -31,8 +31,19 @@ updateTime();
 // --- 1. BIOMETRIC AUTHENTICATION (Camera Init & Load Models) ---
 async function startCamera() {
     try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        // Minta akses kamera depan khusus untuk HP
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+            video: { facingMode: 'user' }, 
+            audio: false 
+        });
         videoFeed.srcObject = stream;
+        
+        // Paksa video untuk dimainkan (solusi untuk iOS/Safari)
+        try {
+            await videoFeed.play();
+        } catch(e) {
+            console.log("Auto-play peringatan (Aman):", e);
+        }
         
         scanStatus.innerHTML = `
             <div class="status-icon loading" style="color: var(--primary)"><i class="ri-loader-4-line"></i></div>
