@@ -56,6 +56,9 @@ window.switchTab = async function(tab) {
     const mainTitle = document.getElementById('mainTitle');
     const mainSubtitle = document.getElementById('mainSubtitle');
 
+    // Stop current camera before switching
+    stopAllCameras();
+
     if (tab === 'register') {
         tabCheckIn.classList.remove('active');
         tabEmployees.classList.add('active');
@@ -63,7 +66,9 @@ window.switchTab = async function(tab) {
         registerSection.classList.remove('hidden');
         mainTitle.textContent = "Registrasi Staf";
         mainSubtitle.textContent = "Lengkapi data dan pindai wajah staf baru";
-        await startCamera(videoRegister);
+        
+        document.getElementById('regCameraAction').classList.remove('hidden');
+        document.getElementById('regSaveAction').classList.add('hidden');
     } else {
         tabCheckIn.classList.add('active');
         tabEmployees.classList.remove('active');
@@ -71,18 +76,30 @@ window.switchTab = async function(tab) {
         registerSection.classList.add('hidden');
         mainTitle.textContent = "Biometric Auth";
         mainSubtitle.textContent = "Pilih nama dan scan wajah Anda";
-        await startCamera(videoFeed);
+
+        document.getElementById('cameraInitAction').classList.remove('hidden');
+        document.getElementById('attendanceActions').classList.add('hidden');
+        document.getElementById('cameraStatusTitle').textContent = "Kamera Nonaktif";
     }
 };
 
-async function startCamera(videoElement) {
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return alert("Kamera tidak didukung");
+function stopAllCameras() {
+    if (videoFeed.srcObject) videoFeed.srcObject.getTracks().forEach(t => t.stop());
+    if (videoRegister.srcObject) videoRegister.srcObject.getTracks().forEach(t => t.stop());
+}
+
+window.initCamera = async function(mode) {
+    const video = mode === 'register' ? videoRegister : videoFeed;
+    const btn = event.currentTarget;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="ri-loader-4-line loading"></i> Memulai Kamera...';
+
     try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
-        videoElement.srcObject = stream;
-        await videoElement.play();
-        
-        // Load AI Models if not loaded
+        video.srcObject = stream;
+        await video.play();
+
+        // Load AI Models
         const api = window.faceapi || faceapi;
         const MODEL_URL = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights';
         if (!api.nets.tinyFaceDetector.params) {
@@ -92,8 +109,22 @@ async function startCamera(videoElement) {
                 api.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
             ]);
         }
-    } catch (e) { console.error(e); }
-}
+
+        if (mode === 'register') {
+            document.getElementById('regCameraAction').classList.add('hidden');
+            document.getElementById('regSaveAction').classList.remove('hidden');
+        } else {
+            document.getElementById('cameraInitAction').classList.add('hidden');
+            document.getElementById('attendanceActions').classList.remove('hidden');
+            document.getElementById('attendanceActions').style.display = 'grid';
+            document.getElementById('cameraStatusTitle').textContent = "Kamera Aktif";
+        }
+    } catch (e) {
+        alert("Gagal aktifkan kamera: " + e.message);
+    }
+    btn.disabled = false;
+    btn.innerHTML = '<i class="ri-vidicon-line"></i> Nyalakan Kamera';
+};
 
 // --- REGISTRATION LOGIC ---
 window.handleFullRegistration = async function() {

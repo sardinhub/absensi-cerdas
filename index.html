@@ -72,12 +72,16 @@
                     
                     <div class="scan-status" id="scanStatus">
                         <div class="status-text">
-                            <h3>Kamera Aktif</h3>
-                            <p>Silakan klik tombol di bawah</p>
+                            <h3 id="cameraStatusTitle">Kamera Nonaktif</h3>
+                            <p id="cameraStatusDesc">Klik tombol di bawah untuk memulai</p>
                         </div>
                     </div>
 
-                    <div class="actions" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <div class="actions" id="cameraInitAction">
+                        <button class="btn btn-primary" style="width: 100%; margin-bottom: 10px;" onclick="initCamera('absensi')"><i class="ri-vidicon-line"></i> Nyalakan Kamera</button>
+                    </div>
+
+                    <div class="actions hidden" id="attendanceActions" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
                         <button class="btn btn-primary" onclick="handleAttendance('in')"><i class="ri-login-box-line"></i> Scan Masuk</button>
                         <button class="btn btn-secondary" onclick="handleAttendance('out')" style="background: rgba(239, 68, 68, 0.2); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3);"><i class="ri-logout-box-line"></i> Scan Pulang</button>
                     </div>
@@ -140,7 +144,11 @@
                     <video id="videoRegister" autoplay muted playsinline style="width: 100%; height: 100%; object-fit: cover; border-radius: 15px;"></video>
                 </div>
 
-                <div class="actions">
+                <div class="actions" id="regCameraAction">
+                    <button class="btn btn-primary" style="width:100%;" onclick="initCamera('register')"><i class="ri-vidicon-line"></i> Nyalakan Kamera</button>
+                </div>
+
+                <div class="actions hidden" id="regSaveAction">
                     <button class="btn btn-primary" id="btnCaptureFace" onclick="handleFullRegistration()"><i class="ri-user-add-line"></i> Simpan Data & Wajah</button>
                 </div>
             </section>
