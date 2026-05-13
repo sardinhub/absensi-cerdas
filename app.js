@@ -21,7 +21,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     try {
         supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-        loadSettings(); // Ambil password dari DB jika ada
+        loadSettings();
     } catch (e) { console.error(e); }
 
     setInterval(updateTime, 1000);
@@ -31,8 +31,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function getSchedule(dayIndex) {
-    // 0 = Minggu, 1-5 = Sen-Jumat, 6 = Sabtu
-    if (dayIndex === 0) return null; // OFF
+    if (dayIndex === 0) return null;
     if (dayIndex === 6) return { in: '08:00:00', out: '14:00:00' };
     return { in: '07:45:00', out: '17:00:00' };
 }
@@ -52,7 +51,7 @@ function updateTime() {
 
 function checkSystemStatus() {
     const day = new Date().getDay();
-    if (day === 0) { // Hari Minggu
+    if (day === 0) {
         document.getElementById('offlineOverlay').classList.remove('hidden');
     }
 }
@@ -96,7 +95,6 @@ window.switchTab = async function(tab) {
     const tabHistory = document.getElementById('tabHistory');
     const tabSettings = document.getElementById('tabSettings');
 
-    // Reset UI
     [tabCheckIn, tabEmployees, tabHistory, tabSettings].forEach(t => t.classList.remove('active'));
     ['checkInGrid', 'registerSection', 'historySection', 'settingsSection'].forEach(s => document.getElementById(s).classList.add('hidden'));
 
@@ -174,7 +172,6 @@ window.handleFullRegistration = async function() {
 
         if (!detections) return alert("Wajah tidak terdeteksi!");
 
-        // Anti-Duplicate
         const duplicate = allEmployees.find(emp => {
             if (!emp.face_embedding) return false;
             return api.euclideanDistance(detections.descriptor, new Float32Array(emp.face_embedding)) < 0.55;
@@ -195,13 +192,30 @@ window.handleFullRegistration = async function() {
 // --- ATTENDANCE ---
 window.handleAttendance = async function(type) {
     const empId = attendanceEmployeeSelect.value;
-    if (!empId) return alert("Pilih nama Anda!");
+    if (!empId) return alert("Pilih nama Anda terlebih dahulu!");
 
-    // Cek Duplicate Scan
-    const today = new Date();
-    today.setHours(0,0,0,0);
-    const { data: existing } = await supabaseClient.from('attendance_logs').select('check_in_time').eq('employee_id', empId).eq('type', type).gte('check_in_time', today.toISOString());
-    if (existing && existing.length > 0) return alert(`SISTEM: Anda sudah ${type === 'in' ? 'Masuk' : 'Pulang'} tadi.`);
+    const actionsDiv = document.getElementById('attendanceActions');
+    const buttons = actionsDiv.querySelectorAll('button');
+    buttons.forEach(b => b.disabled = true);
+    const originalText = type === 'in' ? 'Scan Masuk' : 'Scan Pulang';
+    const targetBtn = Array.from(buttons).find(b => b.innerText.includes(originalText));
+    if (targetBtn) targetBtn.innerHTML = '<i class="ri-loader-4-line loading"></i> Memproses...';
+
+    const reEnable = () => {
+        buttons.forEach(b => b.disabled = false);
+        if (targetBtn) targetBtn.innerHTML = originalText;
+    };
+
+    try {
+        const today = new Date();
+        today.setHours(0,0,0,0);
+        const { data: existing } = await supabaseClient.from('attendance_logs').select('check_in_time').eq('employee_id', empId).eq('type', type).gte('check_in_time', today.toISOString());
+        if (existing && existing.length > 0) {
+            alert(`SISTEM: Anda sudah ${type === 'in' ? 'Masuk' : 'Pulang'} tadi.`);
+            reEnable();
+            return;
+        }
+    } catch (e) { console.error(e); }
 
     const employee = allEmployees.find(e => e.id === empId);
 
@@ -210,7 +224,9 @@ window.handleAttendance = async function(type) {
         const detections = await api.detectSingleFace(videoFeed, new api.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
 
         if (!detections || api.euclideanDistance(detections.descriptor, new Float32Array(employee.face_embedding)) > 0.6) {
-            return alert("Wajah tidak cocok!");
+            alert("Wajah tidak cocok atau tidak terdeteksi!");
+            reEnable();
+            return;
         }
 
         const now = new Date();
@@ -219,11 +235,15 @@ window.handleAttendance = async function(type) {
         if (type === 'out' && sched && now < parseTime(sched.out)) {
             window.pendingAttendanceData = { empId, employee, type, now };
             document.getElementById('earlyOutModal').classList.remove('hidden');
+            reEnable();
             return;
         }
 
         await saveAttendance(empId, employee, type, now);
-    } catch (e) { alert("Error: " + e.message); }
+    } catch (e) { 
+        alert("Error: " + e.message); 
+        reEnable();
+    }
 };
 
 window.confirmEarlyOut = async function() {
@@ -268,52 +288,21 @@ async function loadEmployees() {
 async function loadHistory() {
     const body = document.getElementById('historyTableBody');
     if (!body) return;
-    
     body.innerHTML = '<tr><td colspan="5" style="text-align:center;">Memuat data...</td></tr>';
-
     try {
-        const { data, error } = await supabaseClient
-            .from('attendance_logs')
-            .select(`
-                check_in_time, 
-                status, 
-                type, 
-                notes, 
-                employees (full_name)
-            `)
-            .order('check_in_time', { ascending: false })
-            .limit(50);
-
-        if (error) {
-            console.error("Supabase Error:", error);
-            body.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--danger);">Error: ${error.message}</td></tr>`;
-            return;
-        }
-
-        if (!data || data.length === 0) {
+        const { data, error } = await supabaseClient.from('attendance_logs').select('check_in_time, status, type, notes, employees (full_name)').order('check_in_time', { ascending: false }).limit(50);
+        if (error || !data || data.length === 0) {
             body.innerHTML = '<tr><td colspan="5" style="text-align:center;">Belum ada riwayat absensi.</td></tr>';
             return;
         }
-
         body.innerHTML = '';
         data.forEach(log => {
             const time = new Date(log.check_in_time).toLocaleString('id-ID');
             const name = log.employees ? log.employees.full_name : "Tidak Dikenal";
             const typeText = log.type === 'in' ? '<span style="color:#10b981;">Masuk</span>' : '<span style="color:#ef4444;">Pulang</span>';
-            const notes = log.notes || '-';
-            
-            body.innerHTML += `<tr>
-                <td><strong>${name}</strong></td>
-                <td>${time}</td>
-                <td>${typeText}</td>
-                <td><span class="badge">${log.status}</span></td>
-                <td style="font-size:0.8rem; color:var(--text-muted);">${notes}</td>
-            </tr>`;
+            body.innerHTML += `<tr><td><strong>${name}</strong></td><td>${time}</td><td>${typeText}</td><td><span class="badge">${log.status}</span></td><td>${log.notes || '-'}</td></tr>`;
         });
-    } catch (e) {
-        console.error("System Error:", e);
-        body.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--danger);">Gagal sinkronisasi data.</td></tr>`;
-    }
+    } catch (e) { body.innerHTML = '<tr><td colspan="5" style="text-align:center;">Gagal sinkronisasi data.</td></tr>'; }
 }
 
 function parseTime(timeStr) {
@@ -330,12 +319,8 @@ async function loadSettings() {
 window.saveSettings = async function() {
     const newPass = document.getElementById('setAdminPass').value;
     if (!newPass) return alert("Masukkan password!");
-    
-    const { error } = await supabaseClient.from('settings_config').update({ admin_password: newPass }).eq('id', 1); // Assuming ID 1
-    if (error) {
-        // Jika ID 1 tidak ada, insert saja
-        await supabaseClient.from('settings_config').insert({ admin_password: newPass });
-    }
+    const { error } = await supabaseClient.from('settings_config').update({ admin_password: newPass }).eq('id', 1);
+    if (error) await supabaseClient.from('settings_config').insert({ admin_password: newPass });
     CONFIG.adminPassword = newPass;
     alert("Pengaturan Berhasil Disimpan!");
 };
