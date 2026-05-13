@@ -2,46 +2,40 @@
 const SUPABASE_URL = 'https://besicmdkrakjxevmrzly.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJlc2ljbWRrcmFranhldm1yemx5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg2MTI2MzMsImV4cCI6MjA5NDE4ODYzM30.j61NxM-HY-FxXXfD1Hj2WWEZpLxofdVBSIsE0hHDjxM';
 
-const CONFIG = {
-    workStartTime: '08:00:00',
-    workEndTime: '17:00:00', // Jam pulang aktif
-    adminPassword: '123',     // Password admin untuk approval
-    earlyBirdTime: '07:50:00',
-    earlyBirdReward: 15000,
-    latePenaltyPerMinute: 1000
+let CONFIG = {
+    adminPassword: '123'
 };
 
 let supabaseClient;
-let isCameraOn = false;
+let isAdmin = false;
 let allEmployees = [];
 
 // DOM Elements
-let timeDisplay, videoFeed, scanStatus, btnScan, scanOverlay, resultBox, waitingState;
-let videoRegister, registerSection, checkInGrid, attendanceEmployeeSelect;
+let videoFeed, videoRegister, attendanceEmployeeSelect;
 
 // --- INITIALIZATION ---
 document.addEventListener('DOMContentLoaded', () => {
-    timeDisplay = document.getElementById('currentTime');
     videoFeed = document.getElementById('videoFeed');
-    scanStatus = document.getElementById('scanStatus');
-    scanOverlay = document.querySelector('.scan-overlay');
-    resultBox = document.getElementById('resultBox');
-    waitingState = document.getElementById('waitingState');
     videoRegister = document.getElementById('videoRegister');
-    registerSection = document.getElementById('registerSection');
-    checkInGrid = document.getElementById('checkInGrid');
     attendanceEmployeeSelect = document.getElementById('attendanceEmployeeSelect');
 
     try {
         supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-        console.log("Supabase initialized");
+        loadSettings(); // Ambil password dari DB jika ada
     } catch (e) { console.error(e); }
 
     setInterval(updateTime, 1000);
     updateTime();
-    initOtherEvents();
     loadEmployees();
+    checkSystemStatus();
 });
+
+function getSchedule(dayIndex) {
+    // 0 = Minggu, 1-5 = Sen-Jumat, 6 = Sabtu
+    if (dayIndex === 0) return null; // OFF
+    if (dayIndex === 6) return { in: '08:00:00', out: '14:00:00' };
+    return { in: '07:45:00', out: '17:00:00' };
+}
 
 function updateTime() {
     const timeEl = document.getElementById('currentTime');
@@ -51,67 +45,98 @@ function updateTime() {
     const now = new Date();
     const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
-    
-    const dayName = days[now.getDay()];
-    const date = now.getDate();
-    const monthName = months[now.getMonth()];
-    const year = now.getFullYear();
 
-    dateEl.textContent = `${dayName}, ${date} ${monthName} ${year}`;
+    dateEl.textContent = `${days[now.getDay()]}, ${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear()}`;
     timeEl.textContent = now.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
 
-// --- TAB SWITCHING ---
-window.switchTab = async function(tab) {
-    const tabCheckIn = document.getElementById('tabCheckIn');
-    const tabEmployees = document.getElementById('tabEmployees');
-    const mainTitle = document.getElementById('mainTitle');
-    const mainSubtitle = document.getElementById('mainSubtitle');
+function checkSystemStatus() {
+    const day = new Date().getDay();
+    if (day === 0) { // Hari Minggu
+        document.getElementById('offlineOverlay').classList.remove('hidden');
+    }
+}
 
-    // Stop current camera before switching
-    stopAllCameras();
-
-    if (tab === 'register') {
-        tabCheckIn.classList.remove('active');
-        tabEmployees.classList.add('active');
-        checkInGrid.classList.add('hidden');
-        registerSection.classList.remove('hidden');
-        mainTitle.textContent = "Registrasi Staf";
-        mainSubtitle.textContent = "Lengkapi data dan pindai wajah staf baru";
-        
-        document.getElementById('regCameraAction').classList.remove('hidden');
-        document.getElementById('regSaveAction').classList.add('hidden');
+// --- ADMIN SYSTEM ---
+window.toggleAdminLogin = function() {
+    if (isAdmin) {
+        isAdmin = false;
+        document.body.classList.remove('is-admin');
+        document.getElementById('adminBtn').innerHTML = '<i class="ri-admin-line"></i> Login Admin';
+        switchTab('checkin');
     } else {
-        tabCheckIn.classList.add('active');
-        tabEmployees.classList.remove('active');
-        checkInGrid.classList.remove('hidden');
-        registerSection.classList.add('hidden');
-        mainTitle.textContent = "Biometric Auth";
-        mainSubtitle.textContent = "Pilih nama dan scan wajah Anda";
-
-        document.getElementById('cameraInitAction').classList.remove('hidden');
-        document.getElementById('attendanceActions').classList.add('hidden');
-        document.getElementById('cameraStatusTitle').textContent = "Kamera Nonaktif";
+        document.getElementById('loginModal').classList.toggle('hidden');
     }
 };
 
+window.processAdminLogin = function() {
+    const pass = document.getElementById('loginPass').value;
+    if (pass === CONFIG.adminPassword) {
+        isAdmin = true;
+        document.body.classList.add('is-admin');
+        document.getElementById('adminBtn').innerHTML = '<i class="ri-logout-box-line"></i> Logout Admin';
+        document.getElementById('loginModal').classList.add('hidden');
+        alert("Login Admin Berhasil!");
+    } else {
+        alert("Password Salah!");
+    }
+};
+
+// --- TAB SYSTEM ---
+window.switchTab = async function(tab) {
+    const titles = {
+        checkin: ["Biometric Auth", "Silakan pilih nama dan scan wajah"],
+        register: ["Registrasi Staf", "Lengkapi data dan pindai wajah staf baru"],
+        history: ["Riwayat Absensi", "Daftar kehadiran seluruh staf"],
+        settings: ["Pengaturan", "Kelola jam kerja dan sistem"]
+    };
+
+    const tabCheckIn = document.getElementById('tabCheckIn');
+    const tabEmployees = document.getElementById('tabEmployees');
+    const tabHistory = document.getElementById('tabHistory');
+    const tabSettings = document.getElementById('tabSettings');
+
+    // Reset UI
+    [tabCheckIn, tabEmployees, tabHistory, tabSettings].forEach(t => t.classList.remove('active'));
+    ['checkInGrid', 'registerSection', 'historySection', 'settingsSection'].forEach(s => document.getElementById(s).classList.add('hidden'));
+
+    stopAllCameras();
+
+    if (tab === 'register') {
+        tabEmployees.classList.add('active');
+        document.getElementById('registerSection').classList.remove('hidden');
+    } else if (tab === 'history') {
+        tabHistory.classList.add('active');
+        document.getElementById('historySection').classList.remove('hidden');
+        loadHistory();
+    } else if (tab === 'settings') {
+        tabSettings.classList.add('active');
+        document.getElementById('settingsSection').classList.remove('hidden');
+    } else {
+        tabCheckIn.classList.add('active');
+        document.getElementById('checkInGrid').classList.remove('hidden');
+    }
+
+    document.getElementById('mainTitle').textContent = titles[tab][0];
+    document.getElementById('mainSubtitle').textContent = titles[tab][1];
+};
+
 function stopAllCameras() {
-    if (videoFeed.srcObject) videoFeed.srcObject.getTracks().forEach(t => t.stop());
-    if (videoRegister.srcObject) videoRegister.srcObject.getTracks().forEach(t => t.stop());
+    if (videoFeed && videoFeed.srcObject) videoFeed.srcObject.getTracks().forEach(t => t.stop());
+    if (videoRegister && videoRegister.srcObject) videoRegister.srcObject.getTracks().forEach(t => t.stop());
 }
 
 window.initCamera = async function(mode) {
     const video = mode === 'register' ? videoRegister : videoFeed;
     const btn = event.currentTarget;
     btn.disabled = true;
-    btn.innerHTML = '<i class="ri-loader-4-line loading"></i> Memulai Kamera...';
+    btn.innerHTML = 'Memulai...';
 
     try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
         video.srcObject = stream;
         await video.play();
 
-        // Load AI Models
         const api = window.faceapi || faceapi;
         const MODEL_URL = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights';
         if (!api.nets.tinyFaceDetector.params) {
@@ -123,208 +148,136 @@ window.initCamera = async function(mode) {
         }
 
         if (mode === 'register') {
-            document.getElementById('regCameraAction').classList.add('hidden');
-            document.getElementById('regSaveAction').classList.remove('hidden');
+            document.getElementById('regCameraBtn').classList.add('hidden');
+            document.getElementById('regSaveBtn').classList.remove('hidden');
         } else {
             document.getElementById('cameraInitAction').classList.add('hidden');
             document.getElementById('attendanceActions').classList.remove('hidden');
-            document.getElementById('attendanceActions').style.display = 'grid';
-            document.getElementById('cameraStatusTitle').textContent = "Kamera Aktif";
         }
-    } catch (e) {
-        alert("Gagal aktifkan kamera: " + e.message);
-    }
+    } catch (e) { alert("Gagal aktifkan kamera: " + e.message); }
     btn.disabled = false;
-    btn.innerHTML = '<i class="ri-vidicon-line"></i> Nyalakan Kamera';
+    btn.innerHTML = 'Nyalakan Kamera';
 };
 
-// --- REGISTRATION LOGIC ---
+// --- REGISTRATION ---
 window.handleFullRegistration = async function() {
-    const empIdStr = document.getElementById('regId').value;
+    const id = document.getElementById('regId').value;
     const name = document.getElementById('regName').value;
-    const position = document.getElementById('regPosition').value;
+    const pos = document.getElementById('regPosition').value;
     const birth = document.getElementById('regBirth').value;
     
-    if (!empIdStr || !name || !position || !birth) return alert("Mohon lengkapi semua data!");
-
-    const btn = document.getElementById('btnCaptureFace');
-    btn.disabled = true;
-    btn.innerHTML = '<i class="ri-loader-4-line loading"></i> Memproses...';
+    if (!id || !name || !pos || !birth) return alert("Lengkapi data!");
 
     try {
         const api = window.faceapi || faceapi;
         const detections = await api.detectSingleFace(videoRegister, new api.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
 
-        if (!detections) {
-            alert("Wajah tidak terdeteksi!");
-        } else {
-            const descriptor = Array.from(detections.descriptor);
-            const api = window.faceapi || faceapi;
+        if (!detections) return alert("Wajah tidak terdeteksi!");
 
-            // VALIDASI ANTI-WAJAH GANDA (Cek apakah wajah ini sudah ada di database)
-            const duplicate = allEmployees.find(emp => {
-                if (!emp.face_embedding) return false;
-                const storedDescriptor = new Float32Array(emp.face_embedding);
-                const distance = api.euclideanDistance(detections.descriptor, storedDescriptor);
-                return distance < 0.55; // Ambang batas kemiripan (makin kecil makin ketat)
-            });
+        // Anti-Duplicate
+        const duplicate = allEmployees.find(emp => {
+            if (!emp.face_embedding) return false;
+            return api.euclideanDistance(detections.descriptor, new Float32Array(emp.face_embedding)) < 0.55;
+        });
+        if (duplicate) return alert(`Wajah ini sudah terdaftar atas nama: ${duplicate.full_name}`);
 
-            if (duplicate) {
-                return alert(`PENDAFTARAN DITOLAK!\nWajah ini sudah terdaftar di sistem atas nama: ${duplicate.full_name}`);
-            }
-
-            const { error } = await supabaseClient.from('employees').insert([{
-                employee_id: empIdStr,
-                full_name: name,
-                position: position,
-                birth_date: birth,
-                face_embedding: descriptor
-            }]);
-            
-            if (error) throw error;
-            alert("SUKSES! Staf " + name + " telah terdaftar.");
-            loadEmployees();
-            switchTab('checkin');
-        }
+        const { error } = await supabaseClient.from('employees').insert([{
+            employee_id: id, full_name: name, position: pos, birth_date: birth, face_embedding: Array.from(detections.descriptor)
+        }]);
+        
+        if (error) throw error;
+        alert("Pendaftaran Sukses!");
+        loadEmployees();
+        switchTab('checkin');
     } catch (e) { alert("Gagal: " + e.message); }
-    btn.disabled = false;
-    btn.innerHTML = '<i class="ri-user-add-line"></i> Simpan Data & Wajah';
 };
 
-// --- ATTENDANCE LOGIC (MASUK / PULANG) ---
+// --- ATTENDANCE ---
 window.handleAttendance = async function(type) {
     const empId = attendanceEmployeeSelect.value;
-    if (!empId) return alert("Pilih nama Anda terlebih dahulu!");
+    if (!empId) return alert("Pilih nama Anda!");
 
-    // VALIDASI ABSEN GANDA (Cek apakah sudah absen hari ini)
-    try {
-        const today = new Date();
-        today.setHours(0,0,0,0);
-        const { data: existingLogs } = await supabaseClient
-            .from('attendance_logs')
-            .select('check_in_time')
-            .eq('employee_id', empId)
-            .eq('type', type)
-            .gte('check_in_time', today.toISOString());
-
-        if (existingLogs && existingLogs.length > 0) {
-            const lastTime = new Date(existingLogs[0].check_in_time).toLocaleTimeString();
-            return alert(`SISTEM: Anda sudah melakukan Scan ${type === 'in' ? 'Masuk' : 'Pulang'} pada pukul ${lastTime}`);
-        }
-    } catch (e) { console.error("Check duplicate fail:", e); }
+    // Cek Duplicate Scan
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    const { data: existing } = await supabaseClient.from('attendance_logs').select('check_in_time').eq('employee_id', empId).eq('type', type).gte('check_in_time', today.toISOString());
+    if (existing && existing.length > 0) return alert(`SISTEM: Anda sudah ${type === 'in' ? 'Masuk' : 'Pulang'} tadi.`);
 
     const employee = allEmployees.find(e => e.id === empId);
-    if (!employee || !employee.face_embedding) return alert("Data wajah Anda belum terdaftar. Silakan hubungi Admin.");
-
-    const statusText = type === 'in' ? "Masuk" : "Pulang";
-    scanStatus.innerHTML = `<div class="status-text"><h3>Memproses ${statusText}...</h3><p>Jangan gerakkan wajah Anda</p></div>`;
 
     try {
         const api = window.faceapi || faceapi;
         const detections = await api.detectSingleFace(videoFeed, new api.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
 
-        if (!detections) {
-            alert("Wajah tidak terdeteksi!");
-            return;
+        if (!detections || api.euclideanDistance(detections.descriptor, new Float32Array(employee.face_embedding)) > 0.6) {
+            return alert("Wajah tidak cocok!");
         }
 
-        const storedDescriptor = new Float32Array(employee.face_embedding);
-        const distance = api.euclideanDistance(detections.descriptor, storedDescriptor);
+        const now = new Date();
+        const sched = getSchedule(now.getDay());
         
-        if (distance > 0.6) {
-            alert("Wajah TIDAK COCOK! Pastikan itu adalah Anda.");
+        if (type === 'out' && sched && now < parseTime(sched.out)) {
+            window.pendingAttendanceData = { empId, employee, type, now };
+            document.getElementById('earlyOutModal').classList.remove('hidden');
             return;
         }
 
-        // VALIDASI JAM PULANG
-        if (type === 'out') {
-            const now = new Date();
-            const workEnd = parseTime(CONFIG.workEndTime);
-            if (now < workEnd) {
-                // Tampilkan Modal Pulang Cepat
-                window.pendingAttendanceData = { empId, employee, type, now };
-                document.getElementById('earlyOutModal').classList.remove('hidden');
-                document.getElementById('earlyOutModal').style.display = 'flex';
-                return;
-            }
-        }
-
-        // PROSES ABSENSI NORMAL
-        await completeAttendanceProcess(empId, employee, type, new Date());
-
+        await saveAttendance(empId, employee, type, now);
     } catch (e) { alert("Error: " + e.message); }
-};
-
-window.closeEarlyModal = function() {
-    document.getElementById('earlyOutModal').classList.add('hidden');
-    document.getElementById('earlyOutModal').style.display = 'none';
 };
 
 window.confirmEarlyOut = async function() {
     const reason = document.getElementById('earlyReason').value;
-    const pass = document.getElementById('adminPass').value;
-    
-    if (!reason) return alert("Alasan harus diisi!");
-    if (pass !== CONFIG.adminPassword) return alert("Password Admin SALAH!");
+    const pass = document.getElementById('adminApprovePass').value;
+    if (!reason || pass !== CONFIG.adminPassword) return alert("Data tidak valid!");
 
     const { empId, employee, type, now } = window.pendingAttendanceData;
-    
-    // Tambahkan catatan alasan ke database (nantinya bisa disimpan ke kolom notes)
-    await completeAttendanceProcess(empId, employee, type, now, reason);
-    
+    await saveAttendance(empId, employee, type, now, reason);
     closeEarlyModal();
-    alert("Izin Admin Diterima. Silakan Pulang.");
 };
 
-async function completeAttendanceProcess(empId, employee, type, now, reason = "") {
-    const logic = calculateAttendanceLogic(now, type);
-    const timeStr = now.toLocaleTimeString();
+window.closeEarlyModal = () => document.getElementById('earlyOutModal').classList.add('hidden');
+
+async function saveAttendance(empId, employee, type, now, reason = "") {
+    const sched = getSchedule(now.getDay());
+    let status = "On-Time";
+    if (type === 'in' && sched && now > parseTime(sched.in)) status = "Late";
+    if (type === 'out' && reason) status = "Early Out (Approved)";
 
     const { error } = await supabaseClient.from('attendance_logs').insert([{
-        employee_id: empId,
-        check_in_time: now.toISOString(),
-        status: logic.status,
-        type: type,
-        reward_amount: logic.reward,
-        penalty_amount: logic.penalty,
-        late_duration_minutes: logic.diffMinutes,
-        notes: reason // Simpan alasan jika ada
+        employee_id: empId, check_in_time: now.toISOString(), status, type, notes: reason
     }]);
 
     if (error) throw error;
-
-    // Pesan Sukses Sesuai Permintaan
-    const statusText = type === 'in' ? "Masuk" : "Pulang";
-    alert(`Wajah terdeteksi atas nama ${employee.full_name} ${statusText} pukul ${timeStr}`);
-
-    document.getElementById('resultName').textContent = employee.full_name;
-    document.getElementById('resultDept').textContent = employee.position || "-";
-    document.getElementById('resultTime').textContent = timeStr;
-    document.getElementById('resultBadge').textContent = logic.status;
-    document.getElementById('resultBadge').className = 'badge ' + (logic.status === 'Late' ? 'badge-danger' : 'badge-success');
-    document.getElementById('resultMoney').textContent = type === 'in' ? (logic.reward > 0 ? "+ " + logic.reward : logic.penalty > 0 ? "- " + logic.penalty : "Normal") : "Berhasil Pulang";
+    alert(`Wajah terdeteksi: ${employee.full_name}\nBerhasil ${type === 'in' ? 'Masuk' : 'Pulang'}`);
     
-    waitingState.classList.add('hidden');
-    resultBox.classList.remove('hidden');
-    fetchLeaderboard();
+    document.getElementById('resultBox').classList.remove('hidden');
+    document.getElementById('resultName').textContent = employee.full_name;
+    document.getElementById('resultTime').textContent = now.toLocaleTimeString();
+    document.getElementById('resultBadge').textContent = status;
 }
 
-function calculateAttendanceLogic(now, type) {
-    if (type === 'out') return { status: 'Pulang', reward: 0, penalty: 0, diffMinutes: 0 };
+// --- UTILS ---
+async function loadEmployees() {
+    const { data } = await supabaseClient.from('employees').select('id, full_name, face_embedding');
+    allEmployees = data || [];
+    attendanceEmployeeSelect.innerHTML = '<option value="">-- Pilih Nama --</option>';
+    allEmployees.forEach(e => attendanceEmployeeSelect.innerHTML += `<option value="${e.id}">${e.full_name}</option>`);
+}
 
-    const workStart = parseTime(CONFIG.workStartTime);
-    const earlyBird = parseTime(CONFIG.earlyBirdTime);
-    let status = 'On-Time', reward = 0, penalty = 0, diffMinutes = 0;
-
-    if (now <= earlyBird) {
-        status = 'Early Bird';
-        reward = CONFIG.earlyBirdReward;
-    } else if (now > workStart) {
-        status = 'Late';
-        diffMinutes = Math.floor((now - workStart) / 60000);
-        penalty = diffMinutes * CONFIG.latePenaltyPerMinute;
-    }
-    return { status, reward, penalty, diffMinutes };
+async function loadHistory() {
+    const { data } = await supabaseClient.from('attendance_logs').select('check_in_time, status, type, notes, employees(full_name)').order('check_in_time', { ascending: false }).limit(50);
+    const body = document.getElementById('historyTableBody');
+    body.innerHTML = '';
+    data.forEach(log => {
+        body.innerHTML += `<tr>
+            <td>${log.employees.full_name}</td>
+            <td>${new Date(log.check_in_time).toLocaleString()}</td>
+            <td>${log.type === 'in' ? 'Masuk' : 'Pulang'}</td>
+            <td>${log.status}</td>
+            <td>${log.notes || '-'}</td>
+        </tr>`;
+    });
 }
 
 function parseTime(timeStr) {
@@ -333,36 +286,20 @@ function parseTime(timeStr) {
     return new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m, s || 0);
 }
 
-async function loadEmployees() {
-    try {
-        const { data } = await supabaseClient.from('employees').select('id, full_name, position, face_embedding');
-        allEmployees = data || [];
-        attendanceEmployeeSelect.innerHTML = '<option value="">-- Pilih Nama Anda --</option>';
-        allEmployees.forEach(emp => {
-            attendanceEmployeeSelect.innerHTML += `<option value="${emp.id}">${emp.full_name}</option>`;
-        });
-    } catch (e) {}
+async function loadSettings() {
+    const { data } = await supabaseClient.from('settings_config').select('admin_password').limit(1).single();
+    if (data) CONFIG.adminPassword = data.admin_password;
 }
 
-async function fetchLeaderboard() {
-    try {
-        const { data } = await supabaseClient.from('attendance_logs').select('check_in_time, status, type, employees(full_name)').order('check_in_time', { ascending: false }).limit(10);
-        const list = document.querySelector('.leaderboard-list');
-        list.innerHTML = '';
-        data.forEach(log => {
-            const time = new Date(log.check_in_time).toLocaleTimeString();
-            const name = log.employees ? log.employees.full_name : "User";
-            const typeText = log.type === 'in' ? "Masuk" : "Pulang";
-            list.innerHTML += `<li><div class="user-meta"><span>${name} (${typeText})</span></div><span class="badge">${time}</span></li>`;
-        });
-    } catch (e) {}
-}
-
-function initOtherEvents() {
-    const menuToggle = document.getElementById('menuToggle');
-    const sidebar = document.querySelector('.sidebar');
-    if (menuToggle && sidebar) {
-        menuToggle.addEventListener('click', () => sidebar.classList.toggle('open'));
-        document.querySelector('.main-content').addEventListener('click', () => sidebar.classList.remove('open'));
+window.saveSettings = async function() {
+    const newPass = document.getElementById('setAdminPass').value;
+    if (!newPass) return alert("Masukkan password!");
+    
+    const { error } = await supabaseClient.from('settings_config').update({ admin_password: newPass }).eq('id', 1); // Assuming ID 1
+    if (error) {
+        // Jika ID 1 tidak ada, insert saja
+        await supabaseClient.from('settings_config').insert({ admin_password: newPass });
     }
-}
+    CONFIG.adminPassword = newPass;
+    alert("Pengaturan Berhasil Disimpan!");
+};
