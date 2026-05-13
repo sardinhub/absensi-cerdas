@@ -163,6 +163,7 @@ btnScan.addEventListener('click', async () => {
             isCameraOn = true;
             btnScan.innerHTML = '<i class="ri-focus-3-line"></i> Pindai Wajah (Scan)';
         } catch (e) {
+            alert("Gagal menyalakan kamera. Pastikan Anda mengizinkan akses kamera. Error: " + (e.message || e));
             btnScan.innerHTML = '<i class="ri-vidicon-line"></i> Coba Lagi';
         }
         btnScan.disabled = false;
@@ -317,9 +318,14 @@ document.getElementById('btnExportPdf')?.addEventListener('click', () => {
 const SUPABASE_URL = 'https://besicmdkrakjxevmrzly.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJlc2ljbWRrcmFranhldm1yemx5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg2MTI2MzMsImV4cCI6MjA5NDE4ODYzM30.j61NxM-HY-FxXXfD1Hj2WWEZpLxofdVBSIsE0hHDjxM';
 
-// Inisialisasi Supabase Client secara otomatis
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-console.log("Supabase Client disiapkan:", supabase);
+// Inisialisasi Supabase Client secara otomatis dengan Try-Catch
+let supabase;
+try {
+    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    console.log("Supabase Client disiapkan:", supabase);
+} catch (e) {
+    console.error("Gagal inisialisasi Supabase:", e);
+}
 
 // --- 5. FETCH DATA REAL DARI SUPABASE ---
 let globalAttendanceData = [];
@@ -380,4 +386,22 @@ async function fetchLeaderboard() {
 }
 
 // Panggil fungsi saat aplikasi dimuat pertama kali
-fetchLeaderboard();
+if (supabase) {
+    fetchLeaderboard();
+}
+
+// --- 6. MOBILE SIDEBAR TOGGLE ---
+const menuToggle = document.getElementById('menuToggle');
+const sidebar = document.querySelector('.sidebar');
+if (menuToggle && sidebar) {
+    menuToggle.addEventListener('click', () => {
+        sidebar.classList.toggle('open');
+    });
+    
+    // Tutup sidebar jika layar di-tap di luar sidebar (area main)
+    document.querySelector('.main-content').addEventListener('click', () => {
+        if(sidebar.classList.contains('open')) {
+            sidebar.classList.remove('open');
+        }
+    });
+}
