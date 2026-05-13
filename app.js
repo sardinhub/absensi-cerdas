@@ -245,12 +245,32 @@ function updateReportStats(total, onTime, late, reward, penalty) {
     const summary = document.getElementById('reportSummary');
     if (!summary) return;
     summary.innerHTML = `
-        <div class="stat-grid" style="margin-top: 20px;">
-            <div class="stat-card"><h4>Total Log</h4><p>${total}</p></div>
-            <div class="stat-card"><h4>Tepat Waktu</h4><p style="color:#10b981;">${onTime}</p></div>
-            <div class="stat-card"><h4>Terlambat</h4><p style="color:#ef4444;">${late}</p></div>
-            <div class="stat-card"><h4>Reward</h4><p style="color:#10b981;">Rp ${reward.toLocaleString()}</p></div>
-            <div class="stat-card"><h4>Denda</h4><p style="color:#ef4444;">Rp ${penalty.toLocaleString()}</p></div>
+        <div class="stat-grid">
+            <div class="stat-card">
+                <i class="ri-history-line"></i>
+                <h4>Total Log</h4>
+                <p>${total}</p>
+            </div>
+            <div class="stat-card">
+                <i class="ri-checkbox-circle-line" style="color:#10b981;"></i>
+                <h4>Tepat Waktu</h4>
+                <p style="color:#10b981;">${onTime}</p>
+            </div>
+            <div class="stat-card">
+                <i class="ri-error-warning-line" style="color:#ef4444;"></i>
+                <h4>Terlambat</h4>
+                <p style="color:#ef4444;">${late}</p>
+            </div>
+            <div class="stat-card">
+                <i class="ri-copper-coin-line" style="color:#f59e0b;"></i>
+                <h4>Total Reward</h4>
+                <p style="color:#10b981;">Rp ${reward.toLocaleString()}</p>
+            </div>
+            <div class="stat-card">
+                <i class="ri-money-dollar-circle-line" style="color:#ef4444;"></i>
+                <h4>Total Denda</h4>
+                <p style="color:#ef4444;">Rp ${penalty.toLocaleString()}</p>
+            </div>
         </div>
     `;
 }
