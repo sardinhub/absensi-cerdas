@@ -1,11 +1,8 @@
-// Global Error Handler untuk debugging di HP
-window.onerror = function(msg, url, line) {
-    alert("Kritis Error: " + msg + "\nLine: " + line);
-    return false;
-};
-
 // Elements
 let timeDisplay, videoFeed, scanStatus, btnScan, scanOverlay, resultBox, waitingState;
+
+// Early Alert untuk tes apakah JS jalan
+console.log("App.js Loaded");
 
 document.addEventListener('DOMContentLoaded', () => {
     timeDisplay = document.getElementById('currentTime');
@@ -182,77 +179,83 @@ function displayResult(logicResult, timeStr) {
 // --- Deteksi Wajah Asli saat Tombol Ditekan ---
 let isCameraOn = false;
 
-function initEvents() {
-    btnScan.addEventListener('click', async () => {
-        console.log("Tombol diklik!");
-        if (!isCameraOn) {
-            btnScan.innerHTML = '<i class="ri-loader-4-line status-icon loading"></i> Menyiapkan...';
-            btnScan.disabled = true;
-            try {
-                await startCamera();
-                isCameraOn = true;
-                btnScan.innerHTML = '<i class="ri-focus-3-line"></i> Pindai Wajah (Scan)';
-            } catch (e) {
-                btnScan.innerHTML = '<i class="ri-vidicon-line"></i> Coba Lagi';
-            }
+window.handleMainAction = async function() {
+    console.log("handleMainAction terpanggil!");
+    
+    // Inisialisasi element jika belum (untuk jaga-jaga)
+    if (!btnScan) btnScan = document.getElementById('btnScan');
+    if (!scanStatus) scanStatus = document.getElementById('scanStatus');
+    if (!videoFeed) videoFeed = document.getElementById('videoFeed');
+
+    if (!isCameraOn) {
+        btnScan.innerHTML = '<i class="ri-loader-4-line status-icon loading"></i> Menyiapkan...';
+        btnScan.disabled = true;
+        try {
+            await startCamera();
+            isCameraOn = true;
+            btnScan.innerHTML = '<i class="ri-focus-3-line"></i> Pindai Wajah (Scan)';
+        } catch (e) {
+            btnScan.innerHTML = '<i class="ri-vidicon-line"></i> Coba Lagi';
+            alert("Gagal Start: " + e.message);
+        }
+        btnScan.disabled = false;
+        return;
+    }
+
+    const originalText = btnScan.innerHTML;
+    btnScan.innerHTML = '<i class="ri-loader-4-line status-icon loading"></i> Mencari Wajah...';
+    btnScan.disabled = true;
+    if (scanOverlay) scanOverlay.style.borderColor = 'var(--success)';
+
+    try {
+        const api = window.faceapi || faceapi;
+        if (!api) throw new Error("FaceAPI library belum siap.");
+        
+        const detections = await api.detectSingleFace(videoFeed, new api.TinyFaceDetectorOptions()).withFaceLandmarks();
+        
+        if (!detections) {
+            alert("Wajah tidak terdeteksi! Pastikan pencahayaan cukup.");
+            btnScan.innerHTML = originalText;
             btnScan.disabled = false;
             return;
         }
 
-        const originalText = btnScan.innerHTML;
-        btnScan.innerHTML = '<i class="ri-loader-4-line status-icon loading"></i> Mencari Wajah...';
-        btnScan.disabled = true;
-        scanOverlay.style.borderColor = 'var(--success)';
-
-        try {
-            const api = window.faceapi || faceapi;
-            const detections = await api.detectSingleFace(videoFeed, new api.TinyFaceDetectorOptions()).withFaceLandmarks();
-            
-            if (!detections) {
-                alert("Wajah tidak terdeteksi! Pastikan pencahayaan cukup.");
-                btnScan.innerHTML = originalText;
-                btnScan.disabled = false;
-                scanOverlay.style.borderColor = 'var(--danger)';
-                setTimeout(() => scanOverlay.style.borderColor = 'var(--primary)', 2000);
-                return;
-            }
-
-            const now = new Date();
-            const timeStr = now.toLocaleTimeString('en-US', { hour12: true, hour: '2-digit', minute: '2-digit' });
-            const logicResult = calculateAttendanceLogic(now);
-            
-            if (supabase) {
-                try {
-                    const { data: empData, error: empErr } = await supabase.from('employees').select('id, full_name, department').limit(1).single();
-                    if (empErr) throw empErr;
-                    if (empData) {
-                        const { error: insErr } = await supabase.from('attendance_logs').insert([{
-                            employee_id: empData.id,
-                            check_in_time: now.toISOString(),
-                            status: logicResult.status,
-                            reward_amount: logicResult.reward,
-                            penalty_amount: logicResult.penalty,
-                            late_duration_minutes: logicResult.diffMinutes
-                        }]);
-                        if (insErr) throw insErr;
-                        document.getElementById('resultName').textContent = empData.full_name;
-                        document.getElementById('resultDept').textContent = empData.department;
-                        fetchLeaderboard();
-                    }
-                } catch (err) { console.error(err); }
-            }
-            displayResult(logicResult, timeStr);
-        } catch (e) {
-            alert("Deteksi Error: " + e.message);
+        const now = new Date();
+        const timeStr = now.toLocaleTimeString('en-US', { hour12: true, hour: '2-digit', minute: '2-digit' });
+        const logicResult = calculateAttendanceLogic(now);
+        
+        if (supabase) {
+            try {
+                const { data: empData, error: empErr } = await supabase.from('employees').select('id, full_name, department').limit(1).single();
+                if (empData) {
+                    await supabase.from('attendance_logs').insert([{
+                        employee_id: empData.id,
+                        check_in_time: now.toISOString(),
+                        status: logicResult.status,
+                        reward_amount: logicResult.reward,
+                        penalty_amount: logicResult.penalty,
+                        late_duration_minutes: logicResult.diffMinutes
+                    }]);
+                    document.getElementById('resultName').textContent = empData.full_name;
+                    document.getElementById('resultDept').textContent = empData.department;
+                    fetchLeaderboard();
+                }
+            } catch (err) { console.error(err); }
         }
+        displayResult(logicResult, timeStr);
+    } catch (e) {
+        alert("Deteksi Error: " + e.message);
+    }
 
-        btnScan.innerHTML = originalText;
-        btnScan.disabled = false;
-        scanOverlay.style.borderColor = 'var(--primary)';
-    });
+    btnScan.innerHTML = originalText;
+    btnScan.disabled = false;
+    if (scanOverlay) scanOverlay.style.borderColor = 'var(--primary)';
+};
 
+function initEvents() {
+    // Event listener untuk tombol lain tetap ada
     document.getElementById('btnFingerprint')?.addEventListener('click', () => {
-        alert('Fitur sidik jari memerlukan integrasi WebAuthn (Langkah selanjutnya).');
+        alert('Fitur sidik jari segera hadir.');
     });
 
     document.getElementById('btnExportPdf')?.addEventListener('click', handleExportPdf);
