@@ -28,29 +28,43 @@ function updateTime() {
 setInterval(updateTime, 1000);
 updateTime();
 
-// --- 1. BIOMETRIC AUTHENTICATION (Camera Init) ---
+// --- 1. BIOMETRIC AUTHENTICATION (Camera Init & Load Models) ---
 async function startCamera() {
     try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: true });
         videoFeed.srcObject = stream;
         
-        // Simulasi face-api.js load models (karena butuh folder /models jika full implementasi)
+        scanStatus.innerHTML = `
+            <div class="status-icon loading" style="color: var(--primary)"><i class="ri-loader-4-line"></i></div>
+            <div class="status-text">
+                <h3>Loading Face Models...</h3>
+                <p>Mengunduh file AI (Bisa butuh beberapa detik)</p>
+            </div>
+        `;
+
+        // Load models dari CDN (jsdelivr raw github)
+        const MODEL_URL = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights';
+        await Promise.all([
+            faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+            faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL)
+        ]);
+        
         scanStatus.innerHTML = `
             <div class="status-icon" style="color: var(--success)"><i class="ri-checkbox-circle-line"></i></div>
             <div class="status-text">
                 <h3>Camera Ready</h3>
-                <p>Position your face in the frame</p>
+                <p>Silakan posisikan wajah Anda di dalam kotak</p>
             </div>
         `;
         scanOverlay.classList.add('scanning');
         
     } catch (error) {
-        console.error("Error accessing camera:", error);
+        console.error("Error accessing camera / loading models:", error);
         scanStatus.innerHTML = `
             <div class="status-icon" style="color: var(--danger)"><i class="ri-error-warning-line"></i></div>
             <div class="status-text">
                 <h3>Camera Error</h3>
-                <p>Please allow camera permissions</p>
+                <p>Akses kamera diblokir atau model gagal dimuat</p>
             </div>
         `;
     }
@@ -128,30 +142,40 @@ function displayResult(logicResult, timeStr) {
     }
 }
 
-// Simulasi Scan Face (Karena tidak load actual models untuk MVP local file ini)
-btnScan.addEventListener('click', () => {
+// --- Deteksi Wajah Asli saat Tombol Ditekan ---
+btnScan.addEventListener('click', async () => {
     // Efek loading
     const originalText = btnScan.innerHTML;
-    btnScan.innerHTML = '<i class="ri-loader-4-line status-icon loading"></i> Scanning...';
+    btnScan.innerHTML = '<i class="ri-loader-4-line status-icon loading"></i> Mendeteksi Wajah...';
     btnScan.disabled = true;
     scanOverlay.style.borderColor = 'var(--success)';
 
-    setTimeout(async () => {
-        // Mock waktu acak antara jam 07:30 - 08:30 untuk testing logic
-        const now = new Date();
-        const mockMinutes = Math.floor(Math.random() * 60) + 30; // 07:30 to 08:29
-        now.setHours(8); 
-        now.setMinutes(mockMinutes - 30);
+    try {
+        // Proses deteksi dari video feed
+        const detections = await faceapi.detectSingleFace(videoFeed, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks();
+        
+        if (!detections) {
+            // Wajah tidak ditemukan
+            alert("Wajah tidak terdeteksi! Pastikan wajah Anda terlihat jelas di kamera tanpa masker.");
+            btnScan.innerHTML = originalText;
+            btnScan.disabled = false;
+            scanOverlay.style.borderColor = 'var(--danger)';
+            setTimeout(() => scanOverlay.style.borderColor = 'var(--primary)', 2000);
+            return;
+        }
+
+        // --- JIKA WAJAH TERDETEKSI, LANJUT ABSENSI ---
+        const now = new Date(); // Menggunakan Waktu Asli Sekarang
 
         const timeStr = now.toLocaleTimeString('en-US', { hour12: true, hour: '2-digit', minute: '2-digit' });
         
-        // Jalankan Kalkulasi
+        // Jalankan Kalkulasi Waktu (Berdasarkan jam sekarang)
         const logicResult = calculateAttendanceLogic(now);
         
-        // Simpan ke Supabase jika sudah terhubung
+        // Simpan ke Supabase
         if (SUPABASE_URL !== 'https://YOUR_PROJECT_ID.supabase.co') {
             try {
-                // 1. Ambil data karyawan pertama sebagai dummy (Jane Doe)
+                // 1. Ambil data karyawan pertama sebagai dummy (karena kita belum mengimplementasikan Face Recognition utuh per-user)
                 const { data: empData, error: empErr } = await supabase.from('employees').select('id, full_name, department').limit(1).single();
                 
                 if (empErr) throw empErr;
@@ -168,7 +192,7 @@ btnScan.addEventListener('click', () => {
                     }]);
                     
                     if (insErr) throw insErr;
-                    console.log("Berhasil disimpan ke Supabase!");
+                    console.log("Berhasil absen via deteksi wajah!");
                     
                     // Update UI dengan nama dari database
                     document.getElementById('resultName').textContent = empData.full_name;
@@ -179,19 +203,22 @@ btnScan.addEventListener('click', () => {
                 }
             } catch (err) {
                 console.error("Gagal simpan ke Supabase:", err.message);
-                alert("Gagal simpan ke database. Pastikan tabel & data karyawan sudah ada. Error: " + err.message);
+                alert("Gagal simpan ke database. Pastikan tabel & data karyawan sudah ada.");
             }
         }
         
-        // Update UI
+        // Update UI Result Box
         displayResult(logicResult, timeStr);
         
-        // Reset button
-        btnScan.innerHTML = originalText;
-        btnScan.disabled = false;
-        scanOverlay.style.borderColor = 'var(--primary)';
-        
-    }, 1500);
+    } catch (e) {
+        console.error(e);
+        alert("Terjadi kesalahan saat memproses deteksi wajah.");
+    }
+
+    // Reset button
+    btnScan.innerHTML = originalText;
+    btnScan.disabled = false;
+    scanOverlay.style.borderColor = 'var(--primary)';
 });
 
 // PWA / WebAuthn API untuk Fingerprint (Mock MVP)
