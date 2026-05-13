@@ -274,9 +274,14 @@ window.handleFullRegistration = async function() {
 
         if (error) throw error;
 
-        alert("Registrasi Sukses! Foto dan Wajah telah disimpan.");
+        alert("Registrasi Sukses! Lanjut ke staf berikutnya.");
+        document.getElementById('regId').value = '';
+        document.getElementById('regName').value = '';
+        document.getElementById('regPosition').value = '';
+        document.getElementById('regBirth').value = '';
+        
         loadEmployees(); 
-        switchTab('checkin');
+        loadStaffTable();
     } catch (e) { 
         alert("Gagal menyimpan: " + e.message); 
         console.error(e);
