@@ -184,12 +184,73 @@ window.confirmEarlyOut = async function() {
 };
 
 async function loadReport() {
-    const emp = document.getElementById('reportEmployeeFilter').value, per = document.getElementById('reportPeriodFilter').value;
-    let q = supabaseClient.from('attendance_logs').select('*, employees(full_name)');
-    if (emp !== 'all') q = q.eq('employee_id', emp);
-    const now = new Date();
-    if (per === 'daily') q = q.gte('check_in_time', new Date().setHours(0,0,0,0));
-    // Additional logic for weekly/monthly simplified
-    const { data } = await q.order('check_in_time', { ascending: false });
-    // Display stats logic abbreviated for brevity
+    const empFilter = document.getElementById('reportEmployeeFilter')?.value || 'all';
+    const periodFilter = document.getElementById('reportPeriodFilter')?.value || 'daily';
+    const body = document.getElementById('reportTableBody');
+    if (!body) return;
+    
+    body.innerHTML = '<tr><td colspan="5" style="text-align:center;">Memuat laporan...</td></tr>';
+
+    let query = supabaseClient.from('attendance_logs').select('*, employees(full_name)');
+    if (empFilter !== 'all') query = query.eq('employee_id', empFilter);
+
+    const startOfToday = new Date(); startOfToday.setHours(0,0,0,0);
+    
+    if (periodFilter === 'daily') {
+        query = query.gte('check_in_time', startOfToday.toISOString());
+    } else if (periodFilter === 'weekly') {
+        const first = startOfToday.getDate() - startOfToday.getDay();
+        const startOfWeek = new Date(startOfToday.setDate(first));
+        query = query.gte('check_in_time', startOfWeek.toISOString());
+    } else if (periodFilter === 'monthly') {
+        const startOfMonth = new Date(startOfToday.getFullYear(), startOfToday.getMonth(), 1);
+        query = query.gte('check_in_time', startOfMonth.toISOString());
+    }
+
+    const { data, error } = await query.order('check_in_time', { ascending: false });
+    
+    if (error) {
+        body.innerHTML = `<tr><td colspan="5" style="text-align:center; color:#ef4444;">Error: ${error.message}</td></tr>`;
+        return;
+    }
+
+    if (!data || data.length === 0) {
+        body.innerHTML = '<tr><td colspan="5" style="text-align:center;">Tidak ada data untuk periode ini.</td></tr>';
+        updateReportStats(0, 0, 0, 0, 0);
+        return;
+    }
+
+    let total = data.length, onTime = 0, late = 0, tReward = 0, tPenalty = 0;
+    body.innerHTML = '';
+    
+    data.forEach(log => {
+        if (log.status === 'On-Time' || log.status === 'Early Bird') onTime++;
+        if (log.status === 'Late') late++;
+        tReward += (log.reward_amount || 0);
+        tPenalty += (log.penalty_amount || 0);
+
+        body.innerHTML += `<tr>
+            <td>${log.employees?.full_name || 'N/A'}</td>
+            <td>${new Date(log.check_in_time).toLocaleDateString('id-ID')}</td>
+            <td><span class="badge">${log.status}</span></td>
+            <td style="color:#10b981;">Rp ${(log.reward_amount || 0).toLocaleString()}</td>
+            <td style="color:#ef4444;">Rp ${(log.penalty_amount || 0).toLocaleString()}</td>
+        </tr>`;
+    });
+
+    updateReportStats(total, onTime, late, tReward, tPenalty);
+}
+
+function updateReportStats(total, onTime, late, reward, penalty) {
+    const summary = document.getElementById('reportSummary');
+    if (!summary) return;
+    summary.innerHTML = `
+        <div class="stat-grid" style="margin-top: 20px;">
+            <div class="stat-card"><h4>Total Log</h4><p>${total}</p></div>
+            <div class="stat-card"><h4>Tepat Waktu</h4><p style="color:#10b981;">${onTime}</p></div>
+            <div class="stat-card"><h4>Terlambat</h4><p style="color:#ef4444;">${late}</p></div>
+            <div class="stat-card"><h4>Reward</h4><p style="color:#10b981;">Rp ${reward.toLocaleString()}</p></div>
+            <div class="stat-card"><h4>Denda</h4><p style="color:#ef4444;">Rp ${penalty.toLocaleString()}</p></div>
+        </div>
+    `;
 }
