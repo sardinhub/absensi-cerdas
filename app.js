@@ -95,11 +95,12 @@ async function startCamera(videoElement) {
 
 // --- REGISTRATION LOGIC ---
 window.handleFullRegistration = async function() {
+    const empIdStr = document.getElementById('regId').value;
     const name = document.getElementById('regName').value;
     const position = document.getElementById('regPosition').value;
     const birth = document.getElementById('regBirth').value;
     
-    if (!name || !position || !birth) return alert("Mohon lengkapi semua data!");
+    if (!empIdStr || !name || !position || !birth) return alert("Mohon lengkapi semua data!");
 
     const btn = document.getElementById('btnCaptureFace');
     btn.disabled = true;
@@ -114,6 +115,7 @@ window.handleFullRegistration = async function() {
         } else {
             const descriptor = Array.from(detections.descriptor);
             const { error } = await supabaseClient.from('employees').insert([{
+                employee_id: empIdStr,
                 full_name: name,
                 position: position,
                 birth_date: birth,
