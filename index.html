@@ -149,10 +149,30 @@
             </section>
 
             <!-- Tab: Settings -->
-            <section id="settingsSection" class="glass-card hidden" style="max-width: 450px; margin: 0 auto;">
-                <h2>Pengaturan</h2>
-                <div style="margin-top: 20px;"><label class="form-label">Password Admin Baru</label><input type="password" id="setAdminPass" class="form-input" placeholder="Masukkan password baru"></div>
-                <button class="btn btn-primary" onclick="saveSettings()" style="margin-top: 15px; width: 100%;">Update Password</button>
+            <section id="settingsSection" class="glass-card hidden" style="max-width: 500px; margin: 0 auto;">
+                <h2>Pengaturan Sistem</h2>
+                <div style="display: grid; gap: 20px; margin-top: 25px;">
+                    <div>
+                        <label class="form-label">Password Admin</label>
+                        <input type="password" id="setAdminPass" class="form-input" placeholder="Password untuk akses Admin">
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                        <div>
+                            <label class="form-label">Reward Early Bird (Rp)</label>
+                            <input type="number" id="setReward" class="form-input" placeholder="Contoh: 15000">
+                        </div>
+                        <div>
+                            <label class="form-label">Denda Terlambat / Menit (Rp)</label>
+                            <input type="number" id="setPenalty" class="form-input" placeholder="Contoh: 1000">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="form-label">Batas Early Bird (Menit Sebelum Masuk)</label>
+                        <input type="number" id="setEarlyLimit" class="form-input" placeholder="Contoh: 10">
+                        <small style="color:var(--text-muted); font-size:0.7rem; margin-top:5px; display:block;">Staf mendapat reward jika scan X menit sebelum jam masuk.</small>
+                    </div>
+                    <button class="btn btn-primary" onclick="saveSettings()" style="margin-top: 10px; width: 100%;"><i class="ri-save-3-line"></i> Simpan Semua Pengaturan</button>
+                </div>
             </section>
         </main>
     </div>

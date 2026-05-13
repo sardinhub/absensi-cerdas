@@ -161,7 +161,51 @@ async function loadEmployees() {
 }
 
 function parseTime(t) { const n = new Date(), [h, m, s] = t.split(':'); return new Date(n.getFullYear(), n.getMonth(), n.getDate(), h, m, s || 0); }
-async function loadSettings() { const { data } = await supabaseClient.from('settings_config').select('admin_password').limit(1).single(); if (data) CONFIG.adminPassword = data.admin_password; }
+async function loadSettings() {
+    try {
+        const { data } = await supabaseClient.from('settings_config').select('*').limit(1).single();
+        if (data) {
+            CONFIG.adminPassword = data.admin_password;
+            CONFIG.latePenaltyPerMinute = data.late_penalty_per_minute || 1000;
+            CONFIG.earlyBirdReward = data.early_bird_reward || 15000;
+            CONFIG.earlyBirdBuffer = data.early_bird_limit_minutes || 10;
+            
+            if (document.getElementById('setAdminPass')) {
+                document.getElementById('setAdminPass').value = CONFIG.adminPassword;
+                document.getElementById('setReward').value = CONFIG.earlyBirdReward;
+                document.getElementById('setPenalty').value = CONFIG.latePenaltyPerMinute;
+                document.getElementById('setEarlyLimit').value = CONFIG.earlyBirdBuffer;
+            }
+        }
+    } catch (e) { console.error("Settings load fail:", e); }
+}
+
+window.saveSettings = async function() {
+    const pass = document.getElementById('setAdminPass').value;
+    const reward = parseInt(document.getElementById('setReward').value);
+    const penalty = parseInt(document.getElementById('setPenalty').value);
+    const limit = parseInt(document.getElementById('setEarlyLimit').value);
+
+    if (!pass) return alert("Password Admin tidak boleh kosong!");
+
+    const settingsData = {
+        admin_password: pass,
+        late_penalty_per_minute: penalty,
+        early_bird_reward: reward,
+        early_bird_limit_minutes: limit
+    };
+
+    const { error } = await supabaseClient.from('settings_config').update(settingsData).eq('id', 1);
+    if (error) await supabaseClient.from('settings_config').insert({ id: 1, ...settingsData });
+
+    CONFIG.adminPassword = pass;
+    CONFIG.latePenaltyPerMinute = penalty;
+    CONFIG.earlyBirdReward = reward;
+    CONFIG.earlyBirdBuffer = limit;
+
+    alert("Pengaturan Berhasil Disimpan!");
+};
+
 window.closeModals = () => document.querySelectorAll('.modal').forEach(m => m.classList.add('hidden'));
 
 window.handleFullRegistration = async function() {
