@@ -15,14 +15,18 @@
             background: rgba(255,255,255,0.05); color: white; 
             border: 1px solid rgba(255,255,255,0.1); outline: none;
         }
-        .form-input:focus { border-color: var(--primary); }
         .form-input option { background-color: #1a1c23; color: white; }
+        .form-input:focus { border-color: var(--primary); }
         .admin-only { display: none; }
         .is-admin .admin-only { display: block; }
         .table-container { overflow-x: auto; margin-top: 20px; }
         table { width: 100%; border-collapse: collapse; color: white; font-size: 0.9rem; }
         th { text-align: left; padding: 12px; background: rgba(255,255,255,0.05); color: var(--text-muted); }
         td { padding: 12px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-bottom: 20px; }
+        .stat-card { background: rgba(255,255,255,0.03); padding: 20px; border-radius: 15px; border: 1px solid rgba(255,255,255,0.05); text-align: center; }
+        .stat-card h4 { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 5px; }
+        .stat-card p { font-size: 1.2rem; font-weight: 700; color: var(--primary); }
     </style>
 </head>
 <body>
@@ -37,6 +41,7 @@
                 <li class="active" id="tabCheckIn"><a href="javascript:void(0)" onclick="switchTab('checkin')"><i class="ri-scan-2-line"></i> Absensi</a></li>
                 <li id="tabEmployees" class="admin-only"><a href="javascript:void(0)" onclick="switchTab('register')"><i class="ri-group-line"></i> Registrasi</a></li>
                 <li id="tabHistory" class="admin-only"><a href="javascript:void(0)" onclick="switchTab('history')"><i class="ri-history-line"></i> Riwayat</a></li>
+                <li id="tabReport" class="admin-only"><a href="javascript:void(0)" onclick="switchTab('report')"><i class="ri-file-chart-line"></i> Laporan</a></li>
                 <li id="tabSettings" class="admin-only"><a href="javascript:void(0)" onclick="switchTab('settings')"><i class="ri-settings-4-line"></i> Pengaturan</a></li>
             </ul>
             <div style="margin-top: auto; padding: 20px;">
@@ -137,6 +142,44 @@
                 </div>
             </section>
 
+            <!-- Tab: Laporan -->
+            <section id="reportSection" class="glass-card hidden">
+                <h2>Laporan & Rekap Kehadiran</h2>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin: 20px 0;">
+                    <select id="reportEmployeeFilter" class="form-input" onchange="loadReport()">
+                        <option value="all">Semua Staf</option>
+                    </select>
+                    <select id="reportPeriodFilter" class="form-input" onchange="loadReport()">
+                        <option value="daily">Hari Ini</option>
+                        <option value="weekly">Minggu Ini</option>
+                        <option value="monthly">Bulan Ini</option>
+                    </select>
+                </div>
+
+                <div class="stat-grid">
+                    <div class="stat-card"><h4>Total Kehadiran</h4><p id="statTotal">0</p></div>
+                    <div class="stat-card"><h4>Tepat Waktu</h4><p id="statOnTime" style="color:#10b981;">0</p></div>
+                    <div class="stat-card"><h4>Terlambat</h4><p id="statLate" style="color:#ef4444;">0</p></div>
+                    <div class="stat-card"><h4>Total Reward</h4><p id="statReward" style="color:#10b981;">Rp 0</p></div>
+                    <div class="stat-card"><h4>Total Denda</h4><p id="statPenalty" style="color:#ef4444;">Rp 0</p></div>
+                </div>
+
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Nama</th>
+                                <th>Tanggal</th>
+                                <th>Status</th>
+                                <th>Reward</th>
+                                <th>Denda</th>
+                            </tr>
+                        </thead>
+                        <tbody id="reportTableBody"></tbody>
+                    </table>
+                </div>
+            </section>
+
             <!-- Tab: Settings -->
             <section id="settingsSection" class="glass-card hidden" style="max-width: 500px; margin: 0 auto;">
                 <h2>Pengaturan Sistem</h2>
@@ -187,6 +230,6 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.12/dist/face-api.js"></script>
-    <script src="app.js?v=5"></script>
+    <script src="app.js?v=6"></script>
 </body>
 </html>
