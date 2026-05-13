@@ -246,22 +246,32 @@ function initOtherEvents() {
 window.switchTab = async function(tab) {
     const tabCheckIn = document.getElementById('tabCheckIn');
     const tabEmployees = document.getElementById('tabEmployees');
+    const mainTitle = document.getElementById('mainTitle');
+    const mainSubtitle = document.getElementById('mainSubtitle');
+    const checkInGrid = document.getElementById('checkInGrid');
+    const registerSection = document.getElementById('registerSection');
     
     if (tab === 'register') {
         tabCheckIn.classList.remove('active');
         tabEmployees.classList.add('active');
-        checkInGrid.classList.add('hidden');
-        registerSection.classList.remove('hidden');
+        if (checkInGrid) checkInGrid.classList.add('hidden');
+        if (registerSection) registerSection.classList.remove('hidden');
+        
+        if (mainTitle) mainTitle.textContent = "Face Registration";
+        if (mainSubtitle) mainSubtitle.textContent = "Daftarkan data biometrik staf";
         
         await startRegistrationCamera();
         loadEmployeesToSelect();
     } else {
         tabCheckIn.classList.add('active');
         tabEmployees.classList.remove('active');
-        checkInGrid.classList.remove('hidden');
-        registerSection.classList.add('hidden');
+        if (checkInGrid) checkInGrid.classList.remove('hidden');
+        if (registerSection) registerSection.classList.add('hidden');
+
+        if (mainTitle) mainTitle.textContent = "Biometric Auth";
+        if (mainSubtitle) mainSubtitle.textContent = "Align your face to check-in";
         
-        if (videoRegister.srcObject) {
+        if (videoRegister && videoRegister.srcObject) {
             videoRegister.srcObject.getTracks().forEach(t => t.stop());
         }
     }

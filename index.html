@@ -7,6 +7,9 @@
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+    <style>
+        .hidden { display: none !important; }
+    </style>
     <script>
         window.onerror = function(msg, url, line) {
             alert("Global Error: " + msg + "\nLine: " + line);
@@ -36,18 +39,17 @@
                 <div style="display: flex; align-items: center; gap: 15px;">
                     <button class="menu-toggle" id="menuToggle"><i class="ri-menu-line"></i></button>
                     <div>
-                        <h1 class="page-title">Biometric Auth</h1>
-                        <p class="page-subtitle">Align your face to check-in</p>
+                        <h1 class="page-title" id="mainTitle">Biometric Auth</h1>
+                        <p class="page-subtitle" id="mainSubtitle">Align your face to check-in</p>
                     </div>
                 </div>
                 <div class="time-display" id="currentTime">00:00</div>
             </header>
 
-            <div class="grid-layout">
+            <div class="grid-layout" id="checkInGrid">
                 <!-- Face Scan Area -->
                 <section class="scan-section glass-card">
                     <div class="camera-container">
-                        <!-- Video feed will be injected here -->
                         <video id="videoFeed" autoplay muted playsinline></video>
                         <div class="scan-overlay"></div>
                     </div>
@@ -68,98 +70,59 @@
                     </div>
                 </section>
 
-                <!-- Logic Engine & Results -->
+                <!-- Results Section -->
                 <section class="results-section">
                     <div class="glass-card result-card">
                         <h2>Recent Activity</h2>
-                        
-                        <!-- Simulated Result Box -->
                         <div class="result-box hidden" id="resultBox">
                             <div class="profile-info">
-                                <img src="https://i.pravatar.cc/150?img=11" alt="Employee" class="avatar" id="resultAvatar">
+                                <img src="https://i.pravatar.cc/150?name=dummy" alt="Employee" class="avatar" id="resultAvatar">
                                 <div>
                                     <h3 id="resultName">Jane Doe</h3>
                                     <p id="resultDept">Engineering</p>
                                 </div>
                             </div>
-                            
                             <div class="timing-logic">
-                                <div class="logic-row">
-                                    <span>Time In</span>
-                                    <strong id="resultTime">07:45 AM</strong>
-                                </div>
-                                <div class="logic-row">
-                                    <span>Status</span>
-                                    <span class="badge badge-success" id="resultBadge">Early Bird</span>
-                                </div>
-                                <div class="logic-row">
-                                    <span>Financial Effect</span>
-                                    <strong class="text-success" id="resultMoney">+ Rp 15,000</strong>
-                                </div>
+                                <div class="logic-row"><span>Time In</span><strong id="resultTime">07:45 AM</strong></div>
+                                <div class="logic-row"><span>Status</span><span class="badge badge-success" id="resultBadge">Early Bird</span></div>
+                                <div class="logic-row"><span>Financial Effect</span><strong class="text-success" id="resultMoney">+ Rp 15,000</strong></div>
                             </div>
                         </div>
-
-                        <!-- Placeholder when waiting -->
                         <div class="waiting-state" id="waitingState">
                             <i class="ri-time-line"></i>
                             <p>Waiting for scan...</p>
                         </div>
                     </div>
 
-                    <!-- Mini Leaderboard -->
                     <div class="glass-card leaderboard-card">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
                             <h2 style="margin-bottom: 0;">Today's Discipline</h2>
                             <button class="btn btn-secondary" id="btnExportPdf" style="padding: 0.5rem 1rem; font-size: 0.85rem;"><i class="ri-file-download-line"></i> Export PDF</button>
                         </div>
-                        <ul class="leaderboard-list">
-                            <li>
-                                <div class="user-meta">
-                                    <img src="https://i.pravatar.cc/150?img=33" alt="Avatar">
-                                    <span>John Smith</span>
-                                </div>
-                                <span class="badge badge-success">07:42 AM</span>
-                            </li>
-                            <li>
-                                <div class="user-meta">
-                                    <img src="https://i.pravatar.cc/150?img=47" alt="Avatar">
-                                    <span>Sarah Lee</span>
-                                </div>
-                                <span class="badge badge-success">07:48 AM</span>
-                            </li>
-                            <li>
-                                <div class="user-meta">
-                                    <img src="https://i.pravatar.cc/150?img=12" alt="Avatar">
-                                    <span>Mike Doe</span>
-                                </div>
-                                <span class="badge badge-danger">08:15 AM</span>
-                            </li>
-                        </ul>
-                    </div>
-                </section>
-                <!-- Registration Section (Hidden by default) -->
-                <section class="scan-section glass-card hidden" id="registerSection">
-                    <div style="margin-bottom: 20px;">
-                        <h2 style="margin-bottom: 5px;">Face Registration</h2>
-                        <p style="color: var(--text-muted); font-size: 0.9rem;">Daftarkan wajah karyawan ke database</p>
-                    </div>
-                    
-                    <div class="camera-container" style="height: 300px;">
-                        <video id="videoRegister" autoplay muted playsinline style="width: 100%; height: 100%; object-fit: cover; border-radius: 15px;"></video>
-                    </div>
-
-                    <div style="margin: 20px 0;">
-                        <label style="display: block; margin-bottom: 8px; font-size: 0.9rem; color: var(--text-muted);">Pilih Karyawan</label>
-                        <select id="employeeSelect" style="width: 100%; padding: 12px; border-radius: 10px; background: rgba(255,255,255,0.05); color: white; border: 1px solid rgba(255,255,255,0.1);">
-                            <option value="">-- Sedang memuat data --</option>
-                        </select>
-                    </div>
-
-                    <div class="actions">
-                        <button class="btn btn-primary" id="btnCaptureFace" onclick="handleRegisterFace()"><i class="ri-camera-lens-line"></i> Daftarkan Wajah</button>
+                        <ul class="leaderboard-list"></ul>
                     </div>
                 </section>
             </div>
+
+            <!-- Registration Section -->
+            <section class="scan-section glass-card hidden" id="registerSection" style="max-width: 600px; margin: 2rem auto;">
+                <div style="margin-bottom: 20px;">
+                    <h2 style="margin-bottom: 5px;">Face Registration</h2>
+                    <p style="color: var(--text-muted); font-size: 0.9rem;">Daftarkan wajah karyawan ke database</p>
+                </div>
+                <div class="camera-container" style="height: 300px;">
+                    <video id="videoRegister" autoplay muted playsinline style="width: 100%; height: 100%; object-fit: cover; border-radius: 15px;"></video>
+                </div>
+                <div style="margin: 20px 0;">
+                    <label style="display: block; margin-bottom: 8px; font-size: 0.9rem; color: var(--text-muted);">Pilih Karyawan</label>
+                    <select id="employeeSelect" style="width: 100%; padding: 12px; border-radius: 10px; background: rgba(255,255,255,0.05); color: white; border: 1px solid rgba(255,255,255,0.1);">
+                        <option value="">-- Pilih Nama Staf --</option>
+                    </select>
+                </div>
+                <div class="actions">
+                    <button class="btn btn-primary" id="btnCaptureFace" onclick="handleRegisterFace()"><i class="ri-camera-lens-line"></i> Daftarkan Wajah</button>
+                </div>
+            </section>
         </main>
     </div>
 
