@@ -151,7 +151,7 @@ window.handleAttendance = async function(type) {
         if (ex?.length > 0) { alert("Sudah absen tadi."); return btns.forEach(b => b.disabled = false); }
         const emp = allEmployees.find(e => e.id === empId), api = window.faceapi || faceapi;
         const det = await api.detectSingleFace(videoFeed, new api.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
-        if (!det || api.euclideanDistance(det.descriptor, new Float32Array(emp.face_embedding)) > 0.6) { alert("Wajah tidak cocok!"); return btns.forEach(b => b.disabled = false); }
+        if (!det || api.euclideanDistance(det.descriptor, new Float32Array(emp.face_embedding)) > 0.55) { alert("Wajah tidak cocok!"); return btns.forEach(b => b.disabled = false); }
         const now = new Date(), sched = getSchedule(now.getDay());
         if (type === 'out' && sched && now < parseTime(sched.out)) {
             window.pendingAttendanceData = { empId, employee: emp, type, now };
@@ -253,7 +253,7 @@ window.handleFullRegistration = async function() {
         const det = await api.detectSingleFace(videoRegister, new api.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
         if (!det) return alert("Wajah tidak terdeteksi! Pastikan cahaya cukup.");
         
-        if (allEmployees.find(e => e.face_embedding && api.euclideanDistance(det.descriptor, new Float32Array(e.face_embedding)) < 0.55)) return alert("Wajah sudah terdaftar!");
+        if (allEmployees.find(e => e.face_embedding && api.euclideanDistance(det.descriptor, new Float32Array(e.face_embedding)) < 0.45)) return alert("Wajah sudah terdaftar!");
 
         // CAPTURE PHOTO
         const canvas = document.createElement('canvas');
