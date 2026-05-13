@@ -132,21 +132,36 @@
             </section>
 
             <!-- Tab: History -->
-            <section id="historySection" class="glass-card hidden">
-                <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;">
-                    <h2>Riwayat Absensi</h2>
-                    <div style="display: flex; gap: 10px;">
-                        <button class="btn btn-primary" onclick="openManualAttendance()" style="background: var(--primary); font-size: 0.8rem;">
-                            <i class="ri-edit-box-line"></i> Input Manual (Sakit/Ijin/TL)
-                        </button>
-                        <button class="btn btn-secondary" onclick="loadHistory()"><i class="ri-refresh-line"></i> Refresh</button>
+            <section id="historySection" class="hidden">
+                <div class="glass-card" style="margin-bottom: 20px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px;">
+                        <h2>Riwayat Aktivitas</h2>
+                        <div style="display: flex; gap: 10px;">
+                            <button class="btn btn-primary" onclick="openManualAttendance()" style="background: var(--primary); font-size: 0.8rem;">Input Manual</button>
+                            <button class="btn btn-secondary" onclick="loadHistory()"><i class="ri-refresh-line"></i> Refresh</button>
+                        </div>
                     </div>
                 </div>
-                <div class="table-container">
-                    <table>
-                        <thead><tr><th>Nama</th><th>Waktu</th><th>Tipe</th><th>Status</th><th>Aksi</th></tr></thead>
-                        <tbody id="historyTableBody"></tbody>
-                    </table>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                    <div class="glass-card">
+                        <h3 style="color:#10b981; margin-bottom: 15px;"><i class="ri-login-box-line"></i> Riwayat Jam Masuk</h3>
+                        <div class="table-container">
+                            <table>
+                                <thead><tr><th>Nama</th><th>Waktu</th><th>Status</th><th>Aksi</th></tr></thead>
+                                <tbody id="historyInTableBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="glass-card">
+                        <h3 style="color:#ef4444; margin-bottom: 15px;"><i class="ri-logout-box-line"></i> Riwayat Jam Pulang</h3>
+                        <div class="table-container">
+                            <table>
+                                <thead><tr><th>Nama</th><th>Waktu</th><th>Catatan</th><th>Aksi</th></tr></thead>
+                                <tbody id="historyOutTableBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
                 </div>
             </section>
 

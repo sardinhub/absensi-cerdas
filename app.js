@@ -28,15 +28,15 @@ function updateTime() {
     if (!timeEl || !dateEl) return;
     const now = new Date(), days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'], months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
     dateEl.textContent = `${days[now.getDay()]}, ${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear()}`;
-    timeEl.textContent = now.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    timeEl.textContent = now.toLocaleTimeString('id-ID', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
 
 function checkSystemStatus() { if (new Date().getDay() === 0) document.getElementById('offlineOverlay')?.classList.remove('hidden'); }
 
 function getSchedule(dayIndex) {
-    if (dayIndex === 0) return null; // Minggu OFF
-    if (dayIndex === 6) return { in: '08:00:00', out: '14:00:00' }; // Sabtu
-    return { in: '07:45:00', out: '17:00:00' }; // Sen-Jum
+    if (dayIndex === 0) return null;
+    if (dayIndex === 6) return { in: '08:00:00', out: '14:00:00' };
+    return { in: '07:45:00', out: '17:00:00' };
 }
 
 // --- ADMIN & TAB SYSTEM ---
@@ -51,7 +51,7 @@ window.processAdminLogin = () => {
 };
 
 window.switchTab = async function(tab) {
-    const titles = { checkin: ["Biometric Auth", "Pilih nama dan scan wajah"], register: ["Manajemen Staf", "Kelola data dan registrasi wajah staf"], history: ["Riwayat Absensi", "Edit atau hapus log kehadiran"], report: ["Laporan Kehadiran", "Rekap harian, mingguan, bulanan"], settings: ["Pengaturan", "Kelola sistem"] };
+    const titles = { checkin: ["Biometric Auth", "Pilih nama dan scan wajah"], register: ["Manajemen Staf", "Kelola data dan wajah staf"], history: ["Riwayat Aktivitas", "Raw logs aktivitas staf"], report: ["Laporan Kehadiran", "Rekapitulasi performa staf"], settings: ["Pengaturan", "Kelola sistem"] };
     [document.getElementById('tabCheckIn'), document.getElementById('tabEmployees'), document.getElementById('tabHistory'), document.getElementById('tabReport'), document.getElementById('tabSettings')].forEach(t => t?.classList.remove('active'));
     [document.getElementById('checkInGrid'), document.getElementById('registerSection'), document.getElementById('historySection'), document.getElementById('reportSection'), document.getElementById('settingsSection')].forEach(s => s?.classList.add('hidden'));
     stopAllCameras();
@@ -107,46 +107,34 @@ window.deleteStaff = async (id) => { if (confirm("Hapus staf ini selamanya?")) {
 
 // --- CRUD HISTORY ---
 async function loadHistory() {
-    const body = document.getElementById('historyTableBody'); body.innerHTML = '<tr><td colspan="5">Memuat...</td></tr>';
-    const { data } = await supabaseClient.from('attendance_logs').select('*, employees(full_name)').order('check_in_time', { ascending: false }).limit(50);
-    body.innerHTML = '';
+    const bIn = document.getElementById('historyInTableBody'), bOut = document.getElementById('historyOutTableBody');
+    if (!bIn || !bOut) return;
+    bIn.innerHTML = '<tr><td colspan="4">Memuat...</td></tr>'; bOut.innerHTML = '<tr><td colspan="4">Memuat...</td></tr>';
+    const { data } = await supabaseClient.from('attendance_logs').select('*, employees(full_name)').order('check_in_time', { ascending: false }).limit(100);
+    bIn.innerHTML = ''; bOut.innerHTML = '';
     data?.forEach(log => {
-        body.innerHTML += `<tr><td>${log.employees?.full_name || 'N/A'}</td><td>${new Date(log.check_in_time).toLocaleString()}</td><td>${log.type}</td><td>${log.status}</td>
-            <td><button class="btn-icon btn-delete" onclick="deleteLog('${log.id}')"><i class="ri-delete-bin-line"></i></button></td></tr>`;
+        const time = new Date(log.check_in_time).toLocaleString('id-ID');
+        const name = log.employees?.full_name || 'N/A';
+        const action = `<button class="btn-icon btn-delete" onclick="deleteLog('${log.id}')"><i class="ri-delete-bin-line"></i></button>`;
+        if (log.type === 'in' || (log.type === 'manual' && log.status !== 'Tugas Luar')) {
+            bIn.innerHTML += `<tr><td><strong>${name}</strong></td><td>${time}</td><td><span class="badge">${log.status}</span></td><td>${action}</td></tr>`;
+        } 
+        if (log.type === 'out' || (log.type === 'manual' && log.status === 'Tugas Luar')) {
+            bOut.innerHTML += `<tr><td><strong>${name}</strong></td><td>${time}</td><td>${log.notes || '-'}</td><td>${action}</td></tr>`;
+        }
     });
 }
-window.deleteLog = async (id) => { if (confirm("Hapus log absensi ini?")) { await supabaseClient.from('attendance_logs').delete().eq('id', id); loadHistory(); } };
+window.deleteLog = async (id) => { if (confirm("Hapus log ini?")) { await supabaseClient.from('attendance_logs').delete().eq('id', id); loadHistory(); } };
 
 window.openManualAttendance = () => {
     const select = document.getElementById('manualEmpId');
     select.innerHTML = allEmployees.map(e => `<option value="${e.id}">${e.full_name}</option>`).join('');
     document.getElementById('manualAttendanceModal').classList.remove('hidden');
 };
-
 window.saveManualAttendance = async () => {
-    const empId = document.getElementById('manualEmpId').value;
-    const status = document.getElementById('manualStatus').value;
-    const note = document.getElementById('manualNote').value;
-    
-    if (!empId || !status) return alert("Pilih staf dan status!");
-
-    const { error } = await supabaseClient.from('attendance_logs').insert([{
-        employee_id: empId,
-        check_in_time: new Date().toISOString(),
-        status: status,
-        type: 'manual',
-        notes: note,
-        reward_amount: 0,
-        penalty_amount: 0
-    }]);
-
-    if (!error) {
-        alert("Data Ketidakhadiran Berhasil Disimpan!");
-        closeModals();
-        loadHistory();
-    } else {
-        alert("Gagal: " + error.message);
-    }
+    const id = document.getElementById('manualEmpId').value, st = document.getElementById('manualStatus').value, nt = document.getElementById('manualNote').value;
+    const { error } = await supabaseClient.from('attendance_logs').insert([{ employee_id: id, check_in_time: new Date().toISOString(), status: st, type: 'manual', notes: nt, reward_amount: 0, penalty_amount: 0 }]);
+    if (!error) { alert("Sukses!"); closeModals(); loadHistory(); }
 };
 
 // --- ATTENDANCE ---
@@ -160,7 +148,7 @@ window.handleAttendance = async function(type) {
         if (ex?.length > 0) { alert("Sudah absen tadi."); return btns.forEach(b => b.disabled = false); }
         const emp = allEmployees.find(e => e.id === empId), api = window.faceapi || faceapi;
         const det = await api.detectSingleFace(videoFeed, new api.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
-        if (!det || api.euclideanDistance(det.descriptor, new Float32Array(emp.face_embedding)) > 0.6) { alert("Gagal!"); return btns.forEach(b => b.disabled = false); }
+        if (!det || api.euclideanDistance(det.descriptor, new Float32Array(emp.face_embedding)) > 0.6) { alert("Wajah tidak cocok!"); return btns.forEach(b => b.disabled = false); }
         const now = new Date(), sched = getSchedule(now.getDay());
         if (type === 'out' && sched && now < parseTime(sched.out)) {
             window.pendingAttendanceData = { empId, employee: emp, type, now };
@@ -184,6 +172,47 @@ async function saveAttendance(empId, employee, type, now, reason = "") {
     document.getElementById('resultBadge').textContent = status;
 }
 
+// --- REPORT ---
+async function loadReport() {
+    const emp = document.getElementById('reportEmployeeFilter')?.value || 'all', per = document.getElementById('reportPeriodFilter')?.value || 'daily', body = document.getElementById('reportTableBody');
+    if (!body) return;
+    body.innerHTML = '<tr><td colspan="8">Memuat...</td></tr>';
+    let q = supabaseClient.from('attendance_logs').select('*, employees(full_name)');
+    if (emp !== 'all') q = q.eq('employee_id', emp);
+    const startOfToday = new Date(); startOfToday.setHours(0,0,0,0);
+    if (per === 'daily') q = q.gte('check_in_time', startOfToday.toISOString());
+    else if (per === 'weekly') { const first = startOfToday.getDate() - startOfToday.getDay(); const startOfWeek = new Date(new Date().setDate(first)); startOfWeek.setHours(0,0,0,0); q = q.gte('check_in_time', startOfWeek.toISOString()); }
+    else if (per === 'monthly') { const startOfMonth = new Date(startOfToday.getFullYear(), startOfToday.getMonth(), 1); q = q.gte('check_in_time', startOfMonth.toISOString()); }
+    const { data, error } = await q.order('check_in_time', { ascending: true });
+    if (error) return body.innerHTML = `<tr><td colspan="8">Error: ${error.message}</td></tr>`;
+    const grouped = {};
+    data?.forEach(log => {
+        const date = new Date(log.check_in_time).toLocaleDateString('en-CA'), key = `${date}_${log.employee_id}`;
+        if (!grouped[key]) grouped[key] = { name: log.employees?.full_name || 'N/A', date: new Date(log.check_in_time).toLocaleDateString('id-ID'), in: '-', out: '-', late: 0, status: log.status, reward: 0, penalty: 0, isComplete: false };
+        const time = new Date(log.check_in_time).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+        if (log.type === 'in') { grouped[key].in = time; grouped[key].late = log.late_duration_minutes || 0; grouped[key].status = log.status; grouped[key].reward = log.reward_amount || 0; grouped[key].penalty = log.penalty_amount || 0; }
+        else if (log.type === 'out') { grouped[key].out = time; grouped[key].isComplete = true; }
+        else if (log.type === 'manual') { grouped[key].status = log.status; grouped[key].in = log.status; grouped[key].isComplete = true; }
+    });
+    const rows = Object.values(grouped).filter(r => r.isComplete).reverse();
+    body.innerHTML = rows.length === 0 ? '<tr><td colspan="8">Laporan muncul setelah Scan Pulang.</td></tr>' : '';
+    rows.forEach(r => {
+        body.innerHTML += `<tr><td><strong>${r.name}</strong></td><td>${r.date}</td><td>${r.in}</td><td>${r.out}</td><td>${r.late > 0 ? `${r.late} Menit` : '-'}</td><td><span class="badge">${r.status}</span></td><td style="color:#10b981;">Rp ${r.reward.toLocaleString()}</td><td style="color:#ef4444;">Rp ${r.penalty.toLocaleString()}</td></tr>`;
+    });
+    updateReportStats(rows.length, rows.filter(r => r.status==='On-Time'||r.status==='Early Bird').length, rows.filter(r => r.status==='Late').length, rows.reduce((s, r)=> s+r.reward, 0), rows.reduce((s, r)=> s+r.penalty, 0));
+}
+
+function updateReportStats(total, onTime, late, reward, penalty) {
+    const summary = document.getElementById('reportSummary'); if (!summary) return;
+    summary.innerHTML = `<div class="stat-grid">
+        <div class="stat-card"><i class="ri-history-line"></i><h4>Total Log</h4><p>${total}</p></div>
+        <div class="stat-card"><i class="ri-checkbox-circle-line" style="color:#10b981;"></i><h4>Tepat Waktu</h4><p style="color:#10b981;">${onTime}</p></div>
+        <div class="stat-card"><i class="ri-error-warning-line" style="color:#ef4444;"></i><h4>Terlambat</h4><p style="color:#ef4444;">${late}</p></div>
+        <div class="stat-card"><i class="ri-copper-coin-line" style="color:#f59e0b;"></i><h4>Total Reward</h4><p style="color:#10b981;">Rp ${reward.toLocaleString()}</p></div>
+        <div class="stat-card"><i class="ri-money-dollar-circle-line" style="color:#ef4444;"></i><h4>Total Denda</h4><p style="color:#ef4444;">Rp ${penalty.toLocaleString()}</p></div>
+    </div>`;
+}
+
 // --- UTILS ---
 async function loadEmployees() {
     const { data } = await supabaseClient.from('employees').select('id, full_name, face_embedding');
@@ -191,185 +220,35 @@ async function loadEmployees() {
     document.getElementById('reportEmployeeFilter').innerHTML = '<option value="all">Semua Staf</option>';
     allEmployees.forEach(e => { attendanceEmployeeSelect.innerHTML += `<option value="${e.id}">${e.full_name}</option>`; document.getElementById('reportEmployeeFilter').innerHTML += `<option value="${e.id}">${e.full_name}</option>`; });
 }
-
 function parseTime(t) { const n = new Date(), [h, m, s] = t.split(':'); return new Date(n.getFullYear(), n.getMonth(), n.getDate(), h, m, s || 0); }
 async function loadSettings() {
-    try {
-        const { data } = await supabaseClient.from('settings_config').select('*').limit(1).single();
-        if (data) {
-            CONFIG.adminPassword = data.admin_password;
-            CONFIG.latePenaltyPerMinute = data.late_penalty_per_minute || 1000;
-            CONFIG.earlyBirdReward = data.early_bird_reward || 15000;
-            CONFIG.earlyBirdBuffer = data.early_bird_limit_minutes || 10;
-            
-            if (document.getElementById('setAdminPass')) {
-                document.getElementById('setAdminPass').value = CONFIG.adminPassword;
-                document.getElementById('setReward').value = CONFIG.earlyBirdReward;
-                document.getElementById('setPenalty').value = CONFIG.latePenaltyPerMinute;
-                document.getElementById('setEarlyLimit').value = CONFIG.earlyBirdBuffer;
-            }
-        }
-    } catch (e) { console.error("Settings load fail:", e); }
+    const { data } = await supabaseClient.from('settings_config').select('*').limit(1).single();
+    if (data) { 
+        CONFIG.adminPassword = data.admin_password; CONFIG.latePenaltyPerMinute = data.late_penalty_per_minute; CONFIG.earlyBirdReward = data.early_bird_reward; CONFIG.earlyBirdBuffer = data.early_bird_limit_minutes;
+        if (document.getElementById('setAdminPass')) { document.getElementById('setAdminPass').value = data.admin_password; document.getElementById('setReward').value = data.early_bird_reward; document.getElementById('setPenalty').value = data.late_penalty_per_minute; document.getElementById('setEarlyLimit').value = data.early_bird_limit_minutes; }
+    }
 }
-
 window.saveSettings = async function() {
-    const pass = document.getElementById('setAdminPass').value;
-    const reward = parseInt(document.getElementById('setReward').value);
-    const penalty = parseInt(document.getElementById('setPenalty').value);
-    const limit = parseInt(document.getElementById('setEarlyLimit').value);
-
-    if (!pass) return alert("Password Admin tidak boleh kosong!");
-
-    const settingsData = {
-        admin_password: pass,
-        late_penalty_per_minute: penalty,
-        early_bird_reward: reward,
-        early_bird_limit_minutes: limit
-    };
-
-    const { error } = await supabaseClient.from('settings_config').update(settingsData).eq('id', 1);
-    if (error) await supabaseClient.from('settings_config').insert({ id: 1, ...settingsData });
-
-    CONFIG.adminPassword = pass;
-    CONFIG.latePenaltyPerMinute = penalty;
-    CONFIG.earlyBirdReward = reward;
-    CONFIG.earlyBirdBuffer = limit;
-
-    alert("Pengaturan Berhasil Disimpan!");
+    const p = document.getElementById('setAdminPass').value, r = parseInt(document.getElementById('setReward').value), d = parseInt(document.getElementById('setPenalty').value), l = parseInt(document.getElementById('setEarlyLimit').value);
+    const s = { admin_password: p, late_penalty_per_minute: d, early_bird_reward: r, early_bird_limit_minutes: l };
+    const { error } = await supabaseClient.from('settings_config').update(s).eq('id', 1); if (error) await supabaseClient.from('settings_config').insert({ id: 1, ...s });
+    alert("Tersimpan!"); loadSettings();
 };
-
 window.closeModals = () => document.querySelectorAll('.modal').forEach(m => m.classList.add('hidden'));
-
 window.handleFullRegistration = async function() {
     const id = document.getElementById('regId').value, name = document.getElementById('regName').value, pos = document.getElementById('regPosition').value, birth = document.getElementById('regBirth').value;
     if (!id || !name || !pos || !birth) return alert("Lengkapi!");
     try {
         const api = window.faceapi || faceapi, det = await api.detectSingleFace(videoRegister, new api.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
         if (!det) return alert("Wajah tidak terdeteksi!");
-        if (allEmployees.find(e => e.face_embedding && api.euclideanDistance(det.descriptor, new Float32Array(e.face_embedding)) < 0.55)) return alert("Sudah terdaftar!");
+        if (allEmployees.find(e => e.face_embedding && api.euclideanDistance(det.descriptor, new Float32Array(e.face_embedding)) < 0.55)) return alert("Wajah sudah terdaftar!");
         await supabaseClient.from('employees').insert([{ employee_id: id, full_name: name, position: pos, birth_date: birth, face_embedding: Array.from(det.descriptor) }]);
         alert("Sukses!"); loadEmployees(); switchTab('checkin');
     } catch (e) { alert(e.message); }
 };
-
 window.confirmEarlyOut = async function() {
     const r = document.getElementById('earlyReason').value, p = document.getElementById('adminApprovePass').value;
     if (!r || p !== CONFIG.adminPassword) return alert("Gagal!");
     const { empId, employee, type, now } = window.pendingAttendanceData;
     await saveAttendance(empId, employee, type, now, r); closeModals();
 };
-
-async function loadReport() {
-    const empFilter = document.getElementById('reportEmployeeFilter')?.value || 'all';
-    const periodFilter = document.getElementById('reportPeriodFilter')?.value || 'daily';
-    const body = document.getElementById('reportTableBody');
-    if (!body) return;
-    
-    body.innerHTML = '<tr><td colspan="8" style="text-align:center;">Memuat laporan...</td></tr>';
-
-    let query = supabaseClient.from('attendance_logs').select('*, employees(full_name)');
-    if (empFilter !== 'all') query = query.eq('employee_id', empFilter);
-
-    const startOfToday = new Date(); startOfToday.setHours(0,0,0,0);
-    if (periodFilter === 'daily') query = query.gte('check_in_time', startOfToday.toISOString());
-    else if (periodFilter === 'weekly') {
-        const first = startOfToday.getDate() - startOfToday.getDay();
-        const startOfWeek = new Date(new Date().setDate(first)); startOfWeek.setHours(0,0,0,0);
-        query = query.gte('check_in_time', startOfWeek.toISOString());
-    } else if (periodFilter === 'monthly') {
-        const startOfMonth = new Date(startOfToday.getFullYear(), startOfToday.getMonth(), 1);
-        query = query.gte('check_in_time', startOfMonth.toISOString());
-    }
-
-    const { data, error } = await query.order('check_in_time', { ascending: true });
-    if (error) return body.innerHTML = `<tr><td colspan="8">Error: ${error.message}</td></tr>`;
-
-    // Grouping by Date and Employee
-    const grouped = {};
-    data?.forEach(log => {
-        const date = new Date(log.check_in_time).toLocaleDateString('en-CA'); // YYYY-MM-DD
-        const key = `${date}_${log.employee_id}`;
-        if (!grouped[key]) {
-            grouped[key] = { 
-                name: log.employees?.full_name || 'N/A', 
-                date: new Date(log.check_in_time).toLocaleDateString('id-ID'),
-                in: '-', out: '-', late: 0, status: log.status, reward: 0, penalty: 0 
-            };
-        }
-        const time = new Date(log.check_in_time).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
-        if (log.type === 'in') {
-            grouped[key].in = time;
-            grouped[key].late = log.late_duration_minutes || 0;
-            grouped[key].status = log.status;
-            grouped[key].reward = log.reward_amount || 0;
-            grouped[key].penalty = log.penalty_amount || 0;
-        } else if (log.type === 'out') {
-            grouped[key].out = time;
-        } else if (log.type === 'manual') {
-            grouped[key].status = log.status;
-            grouped[key].in = log.status; // Shows 'Sakit', 'Ijin', etc. in 'Masuk' col
-        }
-    });
-
-    const rows = Object.values(grouped).reverse();
-    if (rows.length === 0) {
-        body.innerHTML = '<tr><td colspan="8" style="text-align:center;">Tidak ada data.</td></tr>';
-        updateReportStats(0, 0, 0, 0, 0);
-        return;
-    }
-
-    let onTime = 0, late = 0, tReward = 0, tPenalty = 0;
-    body.innerHTML = '';
-    rows.forEach(row => {
-        if (row.status === 'On-Time' || row.status === 'Early Bird') onTime++;
-        if (row.status === 'Late') late++;
-        tReward += row.reward; tPenalty += row.penalty;
-
-        body.innerHTML += `<tr>
-            <td><strong>${row.name}</strong></td>
-            <td>${row.date}</td>
-            <td>${row.in}</td>
-            <td>${row.out}</td>
-            <td>${row.late > 0 ? `<span style="color:#ef4444;">${row.late} Menit</span>` : '-'}</td>
-            <td><span class="badge">${row.status}</span></td>
-            <td style="color:#10b981;">Rp ${row.reward.toLocaleString()}</td>
-            <td style="color:#ef4444;">Rp ${row.penalty.toLocaleString()}</td>
-        </tr>`;
-    });
-
-    updateReportStats(rows.length, onTime, late, tReward, tPenalty);
-}
-
-function updateReportStats(total, onTime, late, reward, penalty) {
-    const summary = document.getElementById('reportSummary');
-    if (!summary) return;
-    summary.innerHTML = `
-        <div class="stat-grid">
-            <div class="stat-card">
-                <i class="ri-history-line"></i>
-                <h4>Total Log</h4>
-                <p>${total}</p>
-            </div>
-            <div class="stat-card">
-                <i class="ri-checkbox-circle-line" style="color:#10b981;"></i>
-                <h4>Tepat Waktu</h4>
-                <p style="color:#10b981;">${onTime}</p>
-            </div>
-            <div class="stat-card">
-                <i class="ri-error-warning-line" style="color:#ef4444;"></i>
-                <h4>Terlambat</h4>
-                <p style="color:#ef4444;">${late}</p>
-            </div>
-            <div class="stat-card">
-                <i class="ri-copper-coin-line" style="color:#f59e0b;"></i>
-                <h4>Total Reward</h4>
-                <p style="color:#10b981;">Rp ${reward.toLocaleString()}</p>
-            </div>
-            <div class="stat-card">
-                <i class="ri-money-dollar-circle-line" style="color:#ef4444;"></i>
-                <h4>Total Denda</h4>
-                <p style="color:#ef4444;">Rp ${penalty.toLocaleString()}</p>
-            </div>
-        </div>
-    `;
-}
