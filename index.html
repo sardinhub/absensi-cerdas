@@ -20,13 +20,13 @@
         .admin-only { display: none; }
         .is-admin .admin-only { display: block; }
         .table-container { overflow-x: auto; margin-top: 20px; }
-        table { width: 100%; border-collapse: collapse; color: white; font-size: 0.9rem; }
+        table { width: 100%; border-collapse: collapse; color: white; font-size: 0.85rem; }
         th { text-align: left; padding: 12px; background: rgba(255,255,255,0.05); color: var(--text-muted); }
         td { padding: 12px; border-bottom: 1px solid rgba(255,255,255,0.05); }
-        .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-bottom: 20px; }
-        .stat-card { background: rgba(255,255,255,0.03); padding: 20px; border-radius: 15px; border: 1px solid rgba(255,255,255,0.05); text-align: center; }
-        .stat-card h4 { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 5px; }
-        .stat-card p { font-size: 1.2rem; font-weight: 700; color: var(--primary); }
+        .btn-icon { padding: 5px 8px; font-size: 1.1rem; cursor: pointer; border-radius: 5px; border: none; }
+        .btn-edit { background: rgba(59, 130, 246, 0.2); color: #3b82f6; }
+        .btn-delete { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
+        .modal { position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:20000; display:flex; align-items:center; justify-content:center; }
     </style>
 </head>
 <body>
@@ -39,7 +39,7 @@
             </div>
             <ul class="nav-links">
                 <li class="active" id="tabCheckIn"><a href="javascript:void(0)" onclick="switchTab('checkin')"><i class="ri-scan-2-line"></i> Absensi</a></li>
-                <li id="tabEmployees" class="admin-only"><a href="javascript:void(0)" onclick="switchTab('register')"><i class="ri-group-line"></i> Registrasi</a></li>
+                <li id="tabEmployees" class="admin-only"><a href="javascript:void(0)" onclick="switchTab('register')"><i class="ri-group-line"></i> Manajemen Staf</a></li>
                 <li id="tabHistory" class="admin-only"><a href="javascript:void(0)" onclick="switchTab('history')"><i class="ri-history-line"></i> Riwayat</a></li>
                 <li id="tabReport" class="admin-only"><a href="javascript:void(0)" onclick="switchTab('report')"><i class="ri-file-chart-line"></i> Laporan</a></li>
                 <li id="tabSettings" class="admin-only"><a href="javascript:void(0)" onclick="switchTab('settings')"><i class="ri-settings-4-line"></i> Pengaturan</a></li>
@@ -60,8 +60,8 @@
                     </div>
                 </div>
                 <div class="time-display" style="text-align: right; line-height: 1.2;">
-                    <div id="currentDate" style="font-size: 0.85rem; color: var(--text-muted);">Memuat...</div>
-                    <div id="currentTime" style="font-size: 1.5rem; font-weight: 700; color: var(--primary);">00:00:00</div>
+                    <div id="currentDate" style="font-size: 0.8rem; color: var(--text-muted);">...</div>
+                    <div id="currentTime" style="font-size: 1.3rem; font-weight: 700; color: var(--primary);">00:00:00</div>
                 </div>
             </header>
 
@@ -73,21 +73,17 @@
                         <select id="attendanceEmployeeSelect" class="form-input" style="margin-bottom: 20px;">
                             <option value="">-- Pilih Nama --</option>
                         </select>
-
                         <div class="camera-container" style="height: 250px;">
                             <video id="videoFeed" autoplay muted playsinline></video>
                         </div>
-                        
                         <div id="cameraInitAction" style="margin-top: 15px;">
-                            <button class="btn btn-primary" style="width: 100%;" onclick="initCamera('absensi')"><i class="ri-vidicon-line"></i> Nyalakan Kamera</button>
+                            <button class="btn btn-primary" style="width: 100%;" onclick="initCamera('absensi')">Nyalakan Kamera</button>
                         </div>
-
                         <div id="attendanceActions" class="hidden" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px;">
                             <button class="btn btn-primary" onclick="handleAttendance('in')">Scan Masuk</button>
                             <button class="btn btn-secondary" onclick="handleAttendance('out')" style="background: rgba(239, 68, 68, 0.2); color: #ef4444;">Scan Pulang</button>
                         </div>
                     </section>
-
                     <section class="results-section">
                         <div class="glass-card result-card">
                             <h2>Status Terakhir</h2>
@@ -96,28 +92,38 @@
                                 <p id="resultTime">Jam</p>
                                 <span id="resultBadge" class="badge">Status</span>
                             </div>
-                            <div id="waitingState" class="waiting-state">
-                                <p>Menunggu Scan...</p>
-                            </div>
+                            <div id="waitingState" class="waiting-state"><p>Menunggu Scan...</p></div>
                         </div>
                     </section>
                 </div>
             </div>
 
-            <!-- Tab: Registrasi -->
-            <section id="registerSection" class="glass-card hidden" style="max-width: 600px; margin: 0 auto;">
-                <h2>Registrasi Staf</h2>
-                <div style="display: grid; gap: 15px; margin: 20px 0;">
-                    <input type="text" id="regId" class="form-input" placeholder="ID / NIK">
-                    <input type="text" id="regName" class="form-input" placeholder="Nama Lengkap">
-                    <input type="text" id="regPosition" class="form-input" placeholder="Jabatan">
-                    <input type="date" id="regBirth" class="form-input">
+            <!-- Tab: Registrasi & Manajemen Staf -->
+            <section id="registerSection" class="hidden">
+                <div class="glass-card" style="margin-bottom: 30px;">
+                    <h2>Registrasi Staf Baru</h2>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin: 20px 0;">
+                        <input type="text" id="regId" class="form-input" placeholder="ID / NIK">
+                        <input type="text" id="regName" class="form-input" placeholder="Nama Lengkap">
+                        <input type="text" id="regPosition" class="form-input" placeholder="Jabatan">
+                        <input type="date" id="regBirth" class="form-input">
+                    </div>
+                    <div class="camera-container" style="height: 200px; margin-bottom: 15px;">
+                        <video id="videoRegister" autoplay muted playsinline></video>
+                    </div>
+                    <button class="btn btn-primary" id="regCameraBtn" onclick="initCamera('register')" style="width:100%;">Nyalakan Kamera</button>
+                    <button class="btn btn-primary hidden" id="regSaveBtn" onclick="handleFullRegistration()" style="width:100%;">Simpan Data & Wajah</button>
                 </div>
-                <div class="camera-container" style="height: 250px; margin-bottom: 15px;">
-                    <video id="videoRegister" autoplay muted playsinline></video>
+
+                <div class="glass-card">
+                    <h2>Daftar Staf Terdaftar</h2>
+                    <div class="table-container">
+                        <table>
+                            <thead><tr><th>ID</th><th>Nama</th><th>Jabatan</th><th>Aksi</th></tr></thead>
+                            <tbody id="staffTableBody"></tbody>
+                        </table>
+                    </div>
                 </div>
-                <button class="btn btn-primary" id="regCameraBtn" onclick="initCamera('register')" style="width:100%;">Nyalakan Kamera</button>
-                <button class="btn btn-primary hidden" id="regSaveBtn" onclick="handleFullRegistration()" style="width:100%;">Simpan Data</button>
             </section>
 
             <!-- Tab: History -->
@@ -128,15 +134,7 @@
                 </div>
                 <div class="table-container">
                     <table>
-                        <thead>
-                            <tr>
-                                <th>Nama</th>
-                                <th>Waktu</th>
-                                <th>Tipe</th>
-                                <th>Status</th>
-                                <th>Catatan</th>
-                            </tr>
-                        </thead>
+                        <thead><tr><th>Nama</th><th>Waktu</th><th>Tipe</th><th>Status</th><th>Aksi</th></tr></thead>
                         <tbody id="historyTableBody"></tbody>
                     </table>
                 </div>
@@ -144,69 +142,46 @@
 
             <!-- Tab: Laporan -->
             <section id="reportSection" class="glass-card hidden">
-                <h2>Laporan & Rekap Kehadiran</h2>
+                <h2>Laporan & Rekap</h2>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin: 20px 0;">
-                    <select id="reportEmployeeFilter" class="form-input" onchange="loadReport()">
-                        <option value="all">Semua Staf</option>
-                    </select>
+                    <select id="reportEmployeeFilter" class="form-input" onchange="loadReport()"></select>
                     <select id="reportPeriodFilter" class="form-input" onchange="loadReport()">
-                        <option value="daily">Hari Ini</option>
-                        <option value="weekly">Minggu Ini</option>
-                        <option value="monthly">Bulan Ini</option>
+                        <option value="daily">Hari Ini</option><option value="weekly">Minggu Ini</option><option value="monthly">Bulan Ini</option>
                     </select>
                 </div>
-
-                <div class="stat-grid">
-                    <div class="stat-card"><h4>Total Kehadiran</h4><p id="statTotal">0</p></div>
-                    <div class="stat-card"><h4>Tepat Waktu</h4><p id="statOnTime" style="color:#10b981;">0</p></div>
-                    <div class="stat-card"><h4>Terlambat</h4><p id="statLate" style="color:#ef4444;">0</p></div>
-                    <div class="stat-card"><h4>Total Reward</h4><p id="statReward" style="color:#10b981;">Rp 0</p></div>
-                    <div class="stat-card"><h4>Total Denda</h4><p id="statPenalty" style="color:#ef4444;">Rp 0</p></div>
-                </div>
-
-                <div class="table-container">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Nama</th>
-                                <th>Tanggal</th>
-                                <th>Status</th>
-                                <th>Reward</th>
-                                <th>Denda</th>
-                            </tr>
-                        </thead>
-                        <tbody id="reportTableBody"></tbody>
-                    </table>
-                </div>
+                <tbody id="reportTableBody"></tbody>
             </section>
 
             <!-- Tab: Settings -->
-            <section id="settingsSection" class="glass-card hidden" style="max-width: 500px; margin: 0 auto;">
-                <h2>Pengaturan Sistem</h2>
-                <div style="display: grid; gap: 15px; margin-top: 20px;">
-                    <div>
-                        <label class="form-label">Password Admin Baru</label>
-                        <input type="password" id="setAdminPass" class="form-input" placeholder="Isi untuk ubah">
-                    </div>
-                    <button class="btn btn-primary" onclick="saveSettings()">Simpan Pengaturan</button>
-                </div>
+            <section id="settingsSection" class="glass-card hidden">
+                <h2>Pengaturan</h2>
+                <input type="password" id="setAdminPass" class="form-input" placeholder="Password Admin Baru" style="margin-top:20px;">
+                <button class="btn btn-primary" onclick="saveSettings()" style="margin-top:15px;">Simpan</button>
             </section>
         </main>
     </div>
 
-    <!-- Offline Overlay -->
-    <div id="offlineOverlay" class="hidden" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:20000; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:20px;">
-        <i class="ri-moon-clear-line" style="font-size:5rem; color:var(--primary); margin-bottom:20px;"></i>
-        <h1 style="color:white; margin-bottom:10px;">SISTEM OFFLINE</h1>
-        <p style="color:var(--text-muted); max-width:400px;">Sesuai jadwal, sistem absensi libur pada hari Minggu atau Hari Libur Nasional.</p>
+    <!-- Modals -->
+    <div id="editStaffModal" class="modal hidden">
+        <div class="glass-card" style="width:400px;">
+            <h3>Edit Data Staf</h3>
+            <div style="margin: 20px 0; display:grid; gap:10px;">
+                <input type="hidden" id="editStaffId">
+                <input type="text" id="editStaffName" class="form-input" placeholder="Nama">
+                <input type="text" id="editStaffPos" class="form-input" placeholder="Jabatan">
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                <button class="btn btn-secondary" onclick="closeModals()">Batal</button>
+                <button class="btn btn-primary" onclick="updateStaff()">Simpan Perubahan</button>
+            </div>
+        </div>
     </div>
 
-    <!-- Login Admin Modal -->
-    <div id="loginModal" class="hidden" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:15000; display:flex; align-items:center; justify-content:center;">
+    <!-- Login Modal -->
+    <div id="loginModal" class="modal hidden">
         <div class="glass-card" style="width:320px; text-align:center;">
             <h3>Login Admin</h3>
-            <p style="margin-bottom:20px; font-size:0.8rem; color:var(--text-muted);">Masukkan password untuk akses penuh</p>
-            <input type="password" id="loginPass" class="form-input" placeholder="Password Admin" style="margin-bottom:15px;">
+            <input type="password" id="loginPass" class="form-input" placeholder="Password Admin" style="margin: 20px 0;">
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
                 <button class="btn btn-secondary" onclick="toggleAdminLogin()">Batal</button>
                 <button class="btn btn-primary" onclick="processAdminLogin()">Login</button>
@@ -214,22 +189,8 @@
         </div>
     </div>
 
-    <!-- Early Out Modal -->
-    <div id="earlyOutModal" class="hidden" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:10000; display:flex; align-items:center; justify-content:center;">
-        <div class="glass-card" style="max-width:350px; padding:30px; text-align:center;">
-            <h2 style="color:var(--danger);">Belum Jam Pulang!</h2>
-            <p style="margin:15px 0; font-size:0.9rem;">Izin pulang cepat memerlukan approval Admin.</p>
-            <textarea id="earlyReason" class="form-input" placeholder="Alasan Pulang Cepat" style="height:80px; margin-bottom:10px;"></textarea>
-            <input type="password" id="adminApprovePass" class="form-input" placeholder="Password Admin">
-            <div style="margin-top:20px; display:grid; grid-template-columns:1fr 1fr; gap:10px;">
-                <button class="btn btn-secondary" onclick="closeEarlyModal()">Batal</button>
-                <button class="btn btn-primary" onclick="confirmEarlyOut()" style="background:var(--danger); border-color:var(--danger);">Kirim Izin</button>
-            </div>
-        </div>
-    </div>
-
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.12/dist/face-api.js"></script>
-    <script src="app.js?v=6"></script>
+    <script src="app.js?v=7"></script>
 </body>
 </html>
