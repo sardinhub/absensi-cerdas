@@ -44,9 +44,21 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function updateTime() {
-    if (!timeDisplay) return;
+    const timeEl = document.getElementById('currentTime');
+    const dateEl = document.getElementById('currentDate');
+    if (!timeEl || !dateEl) return;
+    
     const now = new Date();
-    timeDisplay.textContent = now.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+    
+    const dayName = days[now.getDay()];
+    const date = now.getDate();
+    const monthName = months[now.getMonth()];
+    const year = now.getFullYear();
+
+    dateEl.textContent = `${dayName}, ${date} ${monthName} ${year}`;
+    timeEl.textContent = now.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
 
 // --- TAB SWITCHING ---
@@ -169,6 +181,23 @@ window.handleFullRegistration = async function() {
 window.handleAttendance = async function(type) {
     const empId = attendanceEmployeeSelect.value;
     if (!empId) return alert("Pilih nama Anda terlebih dahulu!");
+
+    // VALIDASI ABSEN GANDA (Cek apakah sudah absen hari ini)
+    try {
+        const today = new Date();
+        today.setHours(0,0,0,0);
+        const { data: existingLogs } = await supabaseClient
+            .from('attendance_logs')
+            .select('check_in_time')
+            .eq('employee_id', empId)
+            .eq('type', type)
+            .gte('check_in_time', today.toISOString());
+
+        if (existingLogs && existingLogs.length > 0) {
+            const lastTime = new Date(existingLogs[0].check_in_time).toLocaleTimeString();
+            return alert(`SISTEM: Anda sudah melakukan Scan ${type === 'in' ? 'Masuk' : 'Pulang'} pada pukul ${lastTime}`);
+        }
+    } catch (e) { console.error("Check duplicate fail:", e); }
 
     const employee = allEmployees.find(e => e.id === empId);
     if (!employee || !employee.face_embedding) return alert("Data wajah Anda belum terdaftar. Silakan hubungi Admin.");
