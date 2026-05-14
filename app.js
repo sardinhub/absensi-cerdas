@@ -415,8 +415,20 @@ window.saveSettings = async function() {
     const rad = parseInt(document.getElementById('setRadius').value);
     
     const s = { admin_password: p, late_penalty_per_minute: d, early_bird_reward: r, early_bird_limit_minutes: l, max_daily_penalty: m, enable_geofencing: geo, office_latitude: lat, office_longitude: lng, allowed_radius_meters: rad };
-    const { error } = await supabaseClient.from('settings_config').update(s).eq('id', 1); if (error) await supabaseClient.from('settings_config').insert({ id: 1, ...s });
-    alert("Tersimpan!"); loadSettings();
+    let { error } = await supabaseClient.from('settings_config').update(s).eq('id', 1); 
+    if (error && error.code !== 'PGRST116') {
+        // Coba insert jika update gagal karena baris belum ada
+        const res = await supabaseClient.from('settings_config').insert({ id: 1, ...s });
+        error = res.error;
+    }
+    
+    if (error) {
+        alert("Gagal menyimpan! Error: " + error.message + "\n\nPastikan Anda sudah menjalankan SQL Migrasi di Supabase untuk menambah kolom baru.");
+        console.error("Save Settings Error:", error);
+    } else {
+        alert("Pengaturan Berhasil Tersimpan!"); 
+        loadSettings();
+    }
 };
 window.closeModals = () => document.querySelectorAll('.modal').forEach(m => m.classList.add('hidden'));
 
