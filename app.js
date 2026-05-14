@@ -387,6 +387,7 @@ function parseFaceEmbedding(embedding) {
 async function loadSettings() {
     const { data } = await supabaseClient.from('settings_config').select('*').limit(1).single();
     if (data) { 
+        CONFIG.configId = data.id; // Simpan UUID asli
         CONFIG.adminPassword = data.admin_password; CONFIG.latePenaltyPerMinute = data.late_penalty_per_minute; CONFIG.earlyBirdReward = data.early_bird_reward; CONFIG.earlyBirdBuffer = data.early_bird_limit_minutes;
         CONFIG.maxDailyPenalty = data.max_daily_penalty || 50000;
         CONFIG.enableGeofencing = data.enable_geofencing || false;
@@ -415,10 +416,12 @@ window.saveSettings = async function() {
     const rad = parseInt(document.getElementById('setRadius').value);
     
     const s = { admin_password: p, late_penalty_per_minute: d, early_bird_reward: r, early_bird_limit_minutes: l, max_daily_penalty: m, enable_geofencing: geo, office_latitude: lat, office_longitude: lng, allowed_radius_meters: rad };
-    let { error } = await supabaseClient.from('settings_config').update(s).eq('id', 1); 
-    if (error && error.code !== 'PGRST116') {
-        // Coba insert jika update gagal karena baris belum ada
-        const res = await supabaseClient.from('settings_config').insert({ id: 1, ...s });
+    let error;
+    if (CONFIG.configId) {
+        const res = await supabaseClient.from('settings_config').update(s).eq('id', CONFIG.configId);
+        error = res.error;
+    } else {
+        const res = await supabaseClient.from('settings_config').insert([s]);
         error = res.error;
     }
     
