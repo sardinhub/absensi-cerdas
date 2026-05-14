@@ -54,7 +54,7 @@
                     <section class="scan-section glass-card" style="text-align: center;">
                         <div style="text-align: left; margin-bottom: 16px;">
                             <label class="form-label">Pilih Nama Anda</label>
-                            <select id="attendanceEmployeeSelect" class="form-input"><option value="">-- Pilih Nama --</option></select>
+                            <select id="attendanceEmployeeSelect" class="form-input" onchange="checkAttendanceStatus()"><option value="">-- Pilih Nama --</option></select>
                         </div>
                         <div class="square-camera"><video id="videoFeed" autoplay muted playsinline></video></div>
                         <div id="cameraInitAction" style="margin-top: 20px;">
@@ -411,6 +411,6 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.12/dist/face-api.js"></script>
-    <script src="app.js?v=16"></script>
+    <script src="app.js?v=17"></script>
 </body>
 </html>

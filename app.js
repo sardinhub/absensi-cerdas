@@ -165,7 +165,43 @@ window.saveManualAttendance = async () => {
     if (!error) { alert("Sukses!"); closeModals(); loadHistory(); }
 };
 
+
+
 // --- ATTENDANCE ---
+window.checkAttendanceStatus = async function() {
+    const empId = attendanceEmployeeSelect.value;
+    const btnSec = document.getElementById('attendanceActions');
+    if (!btnSec) return;
+    const btnIn = btnSec.querySelector('button:first-child');
+    const btnOut = btnSec.querySelector('button:last-child');
+    
+    // Default: Reset dan disabled
+    btnIn.disabled = true; btnOut.disabled = true;
+    
+    if (!empId) return; // Jika belum pilih nama, biarkan disabled
+
+    // Cek status hari ini
+    const today = new Date(); today.setHours(0,0,0,0);
+    const { data: logs } = await supabaseClient.from('attendance_logs').select('type').eq('employee_id', empId).gte('check_in_time', today.toISOString());
+    
+    const hasIn = logs?.some(l => l.type === 'in' || l.type === 'manual');
+    const hasOut = logs?.some(l => l.type === 'out');
+
+    if (!hasIn) {
+        // Belum absen masuk
+        btnIn.disabled = false;
+        btnOut.disabled = true;
+    } else if (hasIn && !hasOut) {
+        // Sudah masuk, belum pulang
+        btnIn.disabled = true;
+        btnOut.disabled = false;
+    } else if (hasIn && hasOut) {
+        // Sudah pulang
+        btnIn.disabled = true;
+        btnOut.disabled = true;
+    }
+};
+
 window.handleAttendance = async function(type) {
     const empId = attendanceEmployeeSelect.value; if (!empId) return alert("Pilih nama!");
     const btnSec = document.getElementById('attendanceActions');
@@ -261,6 +297,9 @@ async function saveAttendance(empId, employee, type, now, reason = "") {
     document.getElementById('resultTime').textContent = now.toLocaleTimeString();
     document.getElementById('resultBadge').textContent = status;
     showAttendancePopup({ name: employee.full_name, time: now, type, status, lateMins, penalty, reward });
+    
+    // Update status tombol
+    checkAttendanceStatus();
 }
 
 function showAttendancePopup({ name, time, type, status, lateMins, penalty, reward }) {
