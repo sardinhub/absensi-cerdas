@@ -1,4 +1,5 @@
 // --- CONFIG & GLOBAL VARIABLES ---
+const FACE_MATCH_THRESHOLD = 0.6; // Threshold cocok wajah (semakin besar = semakin longgar)
 const SUPABASE_URL = 'https://besicmdkrakjxevmrzly.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJlc2ljbWRrcmFranhldm1yemx5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg2MTI2MzMsImV4cCI6MjA5NDE4ODYzM30.j61NxM-HY-FxXXfD1Hj2WWEZpLxofdVBSIsE0hHDjxM';
 
@@ -150,8 +151,14 @@ window.handleAttendance = async function(type) {
         const { data: ex } = await supabaseClient.from('attendance_logs').select('id').eq('employee_id', empId).eq('type', type).gte('check_in_time', today.toISOString());
         if (ex?.length > 0) { alert("Sudah absen tadi."); return btns.forEach(b => b.disabled = false); }
         const emp = allEmployees.find(e => e.id === empId), api = window.faceapi || faceapi;
+        if (!emp.face_embedding) { alert("Staf ini belum memiliki data wajah! Silakan registrasi ulang."); return btns.forEach(b => b.disabled = false); }
         const det = await api.detectSingleFace(videoFeed, new api.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
-        if (!det || api.euclideanDistance(det.descriptor, new Float32Array(emp.face_embedding)) > 0.55) { alert("Wajah tidak cocok!"); return btns.forEach(b => b.disabled = false); }
+        if (!det) { alert("Wajah tidak terdeteksi di kamera! Pastikan posisi wajah terlihat jelas."); return btns.forEach(b => b.disabled = false); }
+        // Parse face embedding — handle JSON string dari Supabase
+        const storedEmbedding = parseFaceEmbedding(emp.face_embedding);
+        const distance = api.euclideanDistance(det.descriptor, storedEmbedding);
+        console.log(`[FaceMatch] ${emp.full_name} — Jarak: ${distance.toFixed(4)} | Threshold: ${FACE_MATCH_THRESHOLD}`);
+        if (distance > FACE_MATCH_THRESHOLD) { alert(`Wajah tidak cocok! (Jarak: ${distance.toFixed(2)}, Batas: ${FACE_MATCH_THRESHOLD})\nPastikan pencahayaan cukup dan posisi wajah lurus ke kamera.`); return btns.forEach(b => b.disabled = false); }
         const now = new Date(), sched = getSchedule(now.getDay());
         if (type === 'out' && sched && now < parseTime(sched.out)) {
             window.pendingAttendanceData = { empId, employee: emp, type, now };
@@ -224,6 +231,17 @@ async function loadEmployees() {
     allEmployees.forEach(e => { attendanceEmployeeSelect.innerHTML += `<option value="${e.id}">${e.full_name}</option>`; document.getElementById('reportEmployeeFilter').innerHTML += `<option value="${e.id}">${e.full_name}</option>`; });
 }
 function parseTime(t) { const n = new Date(), [h, m, s] = t.split(':'); return new Date(n.getFullYear(), n.getMonth(), n.getDate(), h, m, s || 0); }
+
+// Parse face embedding dari Supabase — bisa berupa JSON string, array biasa, atau sudah Float32Array
+function parseFaceEmbedding(embedding) {
+    if (embedding instanceof Float32Array) return embedding;
+    if (typeof embedding === 'string') {
+        try { return new Float32Array(JSON.parse(embedding)); } catch (e) { console.error('Gagal parse face embedding string:', e); return new Float32Array(128); }
+    }
+    if (Array.isArray(embedding)) return new Float32Array(embedding);
+    console.error('Format face embedding tidak dikenali:', typeof embedding);
+    return new Float32Array(128);
+}
 async function loadSettings() {
     const { data } = await supabaseClient.from('settings_config').select('*').limit(1).single();
     if (data) { 
@@ -253,7 +271,7 @@ window.handleFullRegistration = async function() {
         const det = await api.detectSingleFace(videoRegister, new api.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
         if (!det) return alert("Wajah tidak terdeteksi! Pastikan cahaya cukup.");
         
-        if (allEmployees.find(e => e.face_embedding && api.euclideanDistance(det.descriptor, new Float32Array(e.face_embedding)) < 0.45)) return alert("Wajah sudah terdaftar!");
+        if (allEmployees.find(e => e.face_embedding && api.euclideanDistance(det.descriptor, parseFaceEmbedding(e.face_embedding)) < 0.45)) return alert("Wajah sudah terdaftar!");
 
         // CAPTURE PHOTO
         const canvas = document.createElement('canvas');
