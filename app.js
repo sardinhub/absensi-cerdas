@@ -233,13 +233,11 @@ function showAttendancePopup({ name, time, type, status, lateMins, penalty, rewa
 
         if (isLate) {
             detail += `<div style="background: var(--danger-light); border: 1px solid rgba(220,38,38,0.15); border-radius: 10px; padding: 14px; text-align: left;">
-                <p style="color: var(--danger); font-weight: 600; font-size: 0.85rem; margin-bottom: 4px;"><i class="ri-time-line"></i> Anda terlambat ${lateMins} menit</p>
-                <p style="color: var(--text-muted); font-size: 0.8rem;">Denda: <strong style="color: var(--danger);">Rp ${penalty.toLocaleString('id-ID')}</strong></p>
+                <p style="color: var(--danger); font-weight: 600; font-size: 0.85rem; margin-bottom: 0;"><i class="ri-time-line"></i> Anda terlambat ${lateMins} menit</p>
             </div>`;
         } else {
             detail += `<div style="background: var(--success-light); border: 1px solid rgba(5,150,105,0.15); border-radius: 10px; padding: 14px; text-align: left;">
-                <p style="color: var(--success); font-weight: 600; font-size: 0.85rem;"><i class="ri-checkbox-circle-line"></i> Anda datang tepat waktu${isEarlyBird ? ' 🎉' : ''}</p>
-                ${isEarlyBird ? `<p style="color: var(--text-muted); font-size: 0.8rem; margin-top: 4px;">Reward Early Bird: <strong style="color: var(--success);">+Rp ${reward.toLocaleString('id-ID')}</strong></p>` : ''}
+                <p style="color: var(--success); font-weight: 600; font-size: 0.85rem; margin-bottom: 0;"><i class="ri-checkbox-circle-line"></i> Anda datang tepat waktu${isEarlyBird ? ' 🎉' : ''}</p>
             </div>`;
         }
 
