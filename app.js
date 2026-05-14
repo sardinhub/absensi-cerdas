@@ -1,5 +1,6 @@
 // --- CONFIG & GLOBAL VARIABLES ---
 const FACE_MATCH_THRESHOLD = 0.6; // Threshold cocok wajah (semakin besar = semakin longgar)
+const MAX_PENALTY_FALLBACK = 50000; // Fallback maks denda jika config belum terbaca
 const SUPABASE_URL = 'https://besicmdkrakjxevmrzly.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJlc2ljbWRrcmFranhldm1yemx5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg2MTI2MzMsImV4cCI6MjA5NDE4ODYzM30.j61NxM-HY-FxXXfD1Hj2WWEZpLxofdVBSIsE0hHDjxM';
 
@@ -200,7 +201,10 @@ async function saveAttendance(empId, employee, type, now, reason = "") {
         else if (now > workStart) {
             status = "Late";
             lateMins = Math.floor((now - workStart) / 60000);
-            penalty = Math.min(lateMins * CONFIG.latePenaltyPerMinute, CONFIG.maxDailyPenalty); // Maks denda per hari
+            const rawPenalty = lateMins * CONFIG.latePenaltyPerMinute;
+            const maxCap = CONFIG.maxDailyPenalty || MAX_PENALTY_FALLBACK;
+            penalty = Math.min(rawPenalty, maxCap);
+            console.log(`[Denda] ${lateMins} menit × Rp${CONFIG.latePenaltyPerMinute} = Rp${rawPenalty} → Cap Rp${maxCap} → Final: Rp${penalty}`);
         }
     }
     await supabaseClient.from('attendance_logs').insert([{ employee_id: empId, check_in_time: now.toISOString(), status, type, notes: reason, reward_amount: reward, penalty_amount: penalty, late_duration_minutes: lateMins }]);
