@@ -366,6 +366,16 @@
         </div>
     </div>
 
+    <!-- Attendance Result Popup -->
+    <div id="attendancePopup" class="modal hidden">
+        <div class="glass-card" style="width: 400px; text-align: center;">
+            <div id="attendancePopupContent"></div>
+            <button class="btn btn-primary" onclick="document.getElementById('attendancePopup').classList.add('hidden')" style="width: 100%; margin-top: 20px; padding: 12px; border-radius: 10px;">
+                <i class="ri-check-line"></i> OK, Mengerti
+            </button>
+        </div>
+    </div>
+
     <div id="offlineOverlay" class="hidden" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(15,23,42,0.96); z-index:50000; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center;">
         <i class="ri-moon-clear-line" style="font-size:5rem; color:var(--primary); margin-bottom:20px;"></i>
         <h1 style="color:white; font-size: 1.8rem;">SISTEM OFFLINE</h1>
@@ -374,6 +384,6 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.12/dist/face-api.js"></script>
-    <script src="app.js?v=10"></script>
+    <script src="app.js?v=11"></script>
 </body>
 </html>

@@ -208,10 +208,63 @@ async function saveAttendance(empId, employee, type, now, reason = "") {
         }
     }
     await supabaseClient.from('attendance_logs').insert([{ employee_id: empId, check_in_time: now.toISOString(), status, type, notes: reason, reward_amount: reward, penalty_amount: penalty, late_duration_minutes: lateMins }]);
-    alert("Berhasil!"); document.getElementById('resultBox').classList.remove('hidden');
+    document.getElementById('resultBox').classList.remove('hidden');
     document.getElementById('resultName').textContent = employee.full_name;
     document.getElementById('resultTime').textContent = now.toLocaleTimeString();
     document.getElementById('resultBadge').textContent = status;
+    showAttendancePopup({ name: employee.full_name, time: now, type, status, lateMins, penalty, reward });
+}
+
+function showAttendancePopup({ name, time, type, status, lateMins, penalty, reward }) {
+    const timeStr = time.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+    const isLate = status === 'Late';
+    const isEarlyBird = status === 'Early Bird';
+    const isIn = type === 'in';
+
+    let icon, iconBg, title, detail;
+
+    if (isIn) {
+        icon = isLate ? 'ri-error-warning-line' : 'ri-checkbox-circle-line';
+        iconBg = isLate ? 'var(--danger-light)' : 'var(--success-light)';
+        const iconColor = isLate ? 'var(--danger)' : 'var(--success)';
+        title = 'Kehadiran Berhasil!';
+        detail = `<p style="color: var(--text-secondary); font-size: 0.95rem; margin: 6px 0 0;">Atas Nama <strong style="color: var(--text-main);">${name}</strong></p>
+                  <p style="color: var(--text-muted); font-size: 0.85rem; margin: 4px 0 16px;">Pukul <strong>${timeStr}</strong></p>`;
+
+        if (isLate) {
+            detail += `<div style="background: var(--danger-light); border: 1px solid rgba(220,38,38,0.15); border-radius: 10px; padding: 14px; text-align: left;">
+                <p style="color: var(--danger); font-weight: 600; font-size: 0.85rem; margin-bottom: 4px;"><i class="ri-time-line"></i> Anda terlambat ${lateMins} menit</p>
+                <p style="color: var(--text-muted); font-size: 0.8rem;">Denda: <strong style="color: var(--danger);">Rp ${penalty.toLocaleString('id-ID')}</strong></p>
+            </div>`;
+        } else {
+            detail += `<div style="background: var(--success-light); border: 1px solid rgba(5,150,105,0.15); border-radius: 10px; padding: 14px; text-align: left;">
+                <p style="color: var(--success); font-weight: 600; font-size: 0.85rem;"><i class="ri-checkbox-circle-line"></i> Anda datang tepat waktu${isEarlyBird ? ' 🎉' : ''}</p>
+                ${isEarlyBird ? `<p style="color: var(--text-muted); font-size: 0.8rem; margin-top: 4px;">Reward Early Bird: <strong style="color: var(--success);">+Rp ${reward.toLocaleString('id-ID')}</strong></p>` : ''}
+            </div>`;
+        }
+
+        // Set icon color
+        detail = `<div style="width: 64px; height: 64px; border-radius: 16px; background: ${iconBg}; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px;">
+            <i class="${icon}" style="font-size: 1.8rem; color: ${iconColor};"></i>
+        </div>
+        <h3 style="font-size: 1.2rem; font-weight: 700; color: var(--text-main); margin: 0;">${title}</h3>
+        ${detail}`;
+    } else {
+        // Type out (pulang)
+        detail = `<div style="width: 64px; height: 64px; border-radius: 16px; background: var(--primary-light); display: flex; align-items: center; justify-content: center; margin: 0 auto 16px;">
+            <i class="ri-logout-box-line" style="font-size: 1.8rem; color: var(--primary);"></i>
+        </div>
+        <h3 style="font-size: 1.2rem; font-weight: 700; color: var(--text-main); margin: 0;">Scan Pulang Berhasil!</h3>
+        <p style="color: var(--text-secondary); font-size: 0.95rem; margin: 6px 0 0;">Atas Nama <strong style="color: var(--text-main);">${name}</strong></p>
+        <p style="color: var(--text-muted); font-size: 0.85rem; margin: 4px 0 16px;">Pukul <strong>${timeStr}</strong></p>
+        <div style="background: var(--primary-light); border: 1px solid rgba(79,70,229,0.15); border-radius: 10px; padding: 14px;">
+            <p style="color: var(--primary); font-weight: 600; font-size: 0.85rem;"><i class="ri-hand-heart-line"></i> Terima kasih, hati-hati di jalan!</p>
+        </div>`;
+    }
+
+    const popup = document.getElementById('attendancePopup');
+    document.getElementById('attendancePopupContent').innerHTML = detail;
+    popup.classList.remove('hidden');
 }
 
 // --- REPORT ---
