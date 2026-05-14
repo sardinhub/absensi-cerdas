@@ -26,8 +26,8 @@ CREATE TABLE settings_config (
     max_daily_penalty DECIMAL(10, 2) DEFAULT 50000.00, -- Maks denda per hari
     admin_password VARCHAR(255) DEFAULT '123',
     enable_geofencing BOOLEAN DEFAULT FALSE,
-    office_latitude DECIMAL(10, 8) DEFAULT -6.200000,
-    office_longitude DECIMAL(11, 8) DEFAULT 106.816666,
+    office_latitude DOUBLE PRECISION DEFAULT -6.200000,
+    office_longitude DOUBLE PRECISION DEFAULT 106.816666,
     allowed_radius_meters INTEGER DEFAULT 100,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
