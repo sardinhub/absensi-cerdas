@@ -23,6 +23,29 @@ document.addEventListener('DOMContentLoaded', () => {
     updateTime();
     loadEmployees();
     checkSystemStatus();
+
+    // Mobile Menu Toggle
+    const menuBtn = document.getElementById('menuToggle');
+    const sidebar = document.querySelector('.sidebar');
+    const overlay = document.getElementById('sidebarOverlay');
+
+    function toggleMenu() {
+        sidebar.classList.toggle('open');
+        overlay.classList.toggle('active');
+    }
+
+    if (menuBtn && sidebar && overlay) {
+        menuBtn.addEventListener('click', toggleMenu);
+        overlay.addEventListener('click', toggleMenu);
+        
+        // Auto close sidebar when clicking a nav link on mobile
+        const navLinks = sidebar.querySelectorAll('.nav-links a');
+        navLinks.forEach(link => {
+            link.addEventListener('click', () => {
+                if (window.innerWidth <= 768) toggleMenu();
+            });
+        });
+    }
 });
 
 function updateTime() {
