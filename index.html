@@ -275,6 +275,32 @@
                             </div>
                         </div>
 
+                        <!-- Group: Lokasi (Geofencing) -->
+                        <div style="background: var(--bg-input); padding: 20px; border-radius: 12px; border: 1px solid var(--border-color);">
+                            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;">
+                                <label class="form-label" style="margin: 0;"><i class="ri-map-pin-line"></i> Pembatasan Lokasi Absen</label>
+                                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                    <input type="checkbox" id="setEnableGeofencing" style="width: 16px; height: 16px;">
+                                    <span style="font-size: 0.8rem; font-weight: 600;">Aktifkan</span>
+                                </label>
+                            </div>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px;">
+                                <div>
+                                    <label class="form-label" style="font-size: 0.7rem;">Latitude Kantor</label>
+                                    <input type="number" step="any" id="setOfficeLat" class="form-input" placeholder="-6.200000">
+                                </div>
+                                <div>
+                                    <label class="form-label" style="font-size: 0.7rem;">Longitude Kantor</label>
+                                    <input type="number" step="any" id="setOfficeLng" class="form-input" placeholder="106.816666">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="form-label" style="font-size: 0.7rem;">Radius Toleransi (Meter)</label>
+                                <input type="number" id="setRadius" class="form-input" placeholder="100">
+                            </div>
+                            <small style="color: var(--text-light); font-size: 0.7rem; margin-top: 10px; display: block;">Jika aktif, staf tidak bisa absen di luar radius ini dari titik kantor.</small>
+                        </div>
+
                         <button class="btn btn-primary" onclick="saveSettings()" style="width: 100%; height: 50px; font-weight: 600; font-size: 0.95rem; border-radius: 10px;">
                             <i class="ri-save-3-fill"></i> SIMPAN PERUBAHAN
                         </button>
@@ -385,6 +411,6 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.12/dist/face-api.js"></script>
-    <script src="app.js?v=13"></script>
+    <script src="app.js?v=14"></script>
 </body>
 </html>

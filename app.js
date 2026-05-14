@@ -4,7 +4,7 @@ const MAX_PENALTY_FALLBACK = 50000; // Fallback maks denda jika config belum ter
 const SUPABASE_URL = 'https://besicmdkrakjxevmrzly.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJlc2ljbWRrcmFranhldm1yemx5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg2MTI2MzMsImV4cCI6MjA5NDE4ODYzM30.j61NxM-HY-FxXXfD1Hj2WWEZpLxofdVBSIsE0hHDjxM';
 
-let CONFIG = { adminPassword: '123', latePenaltyPerMinute: 1000, earlyBirdReward: 15000, earlyBirdBuffer: 10, maxDailyPenalty: 50000 };
+let CONFIG = { adminPassword: '123', latePenaltyPerMinute: 1000, earlyBirdReward: 15000, earlyBirdBuffer: 10, maxDailyPenalty: 50000, enableGeofencing: false, officeLatitude: -6.200000, officeLongitude: 106.816666, allowedRadiusMeters: 100 };
 let supabaseClient;
 let isAdmin = false;
 let allEmployees = [];
@@ -193,6 +193,31 @@ window.handleAttendance = async function(type) {
     }
 
     setLoading();
+
+    // Verifikasi Geofencing Lokasi (Jika aktif & scan masuk)
+    if (type === 'in' && CONFIG.enableGeofencing) {
+        clickedBtn.innerHTML = '<span class="btn-spinner"></span> Cek Lokasi...';
+        try {
+            const position = await new Promise((resolve, reject) => {
+                if (!navigator.geolocation) return reject(new Error("Browser tidak mendukung GPS"));
+                navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000 });
+            });
+            
+            const dist = calculateDistance(position.coords.latitude, position.coords.longitude, CONFIG.officeLatitude, CONFIG.officeLongitude);
+            console.log(`[Geofence] Jarak staf: ${Math.round(dist)}m | Maks: ${CONFIG.allowedRadiusMeters}m`);
+            
+            if (dist > CONFIG.allowedRadiusMeters) {
+                resetButtons();
+                alert(`Anda tidak dalam area kantor, segera masuk ke area kantor untuk bisa melanjutkan Absensi Anda.`);
+                return;
+            }
+        } catch (err) {
+            resetButtons();
+            alert("Gagal memverifikasi lokasi: " + err.message + "\nPastikan GPS/Lokasi aktif dan izin diberikan ke browser ini.");
+            return;
+        }
+        clickedBtn.innerHTML = '<span class="btn-spinner"></span> Memproses...';
+    }
     try {
         const today = new Date(); today.setHours(0,0,0,0);
         const { data: ex } = await supabaseClient.from('attendance_logs').select('id').eq('employee_id', empId).eq('type', type).gte('check_in_time', today.toISOString());
@@ -338,6 +363,17 @@ async function loadEmployees() {
 }
 function parseTime(t) { const n = new Date(), [h, m, s] = t.split(':'); return new Date(n.getFullYear(), n.getMonth(), n.getDate(), h, m, s || 0); }
 
+// Hitung jarak (meter) menggunakan Rumus Haversine
+function calculateDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371e3; // Radius bumi dalam meter
+    const rad = Math.PI / 180;
+    const dLat = (lat2 - lat1) * rad;
+    const dLon = (lon2 - lon1) * rad;
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1 * rad) * Math.cos(lat2 * rad) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+}
+
 // Parse face embedding dari Supabase — bisa berupa JSON string, array biasa, atau sudah Float32Array
 function parseFaceEmbedding(embedding) {
     if (embedding instanceof Float32Array) return embedding;
@@ -353,18 +389,32 @@ async function loadSettings() {
     if (data) { 
         CONFIG.adminPassword = data.admin_password; CONFIG.latePenaltyPerMinute = data.late_penalty_per_minute; CONFIG.earlyBirdReward = data.early_bird_reward; CONFIG.earlyBirdBuffer = data.early_bird_limit_minutes;
         CONFIG.maxDailyPenalty = data.max_daily_penalty || 50000;
+        CONFIG.enableGeofencing = data.enable_geofencing || false;
+        CONFIG.officeLatitude = parseFloat(data.office_latitude) || -6.200000;
+        CONFIG.officeLongitude = parseFloat(data.office_longitude) || 106.816666;
+        CONFIG.allowedRadiusMeters = parseInt(data.allowed_radius_meters) || 100;
+
         if (document.getElementById('setAdminPass')) {
             document.getElementById('setAdminPass').value = data.admin_password;
             document.getElementById('setReward').value = data.early_bird_reward;
             document.getElementById('setPenalty').value = data.late_penalty_per_minute;
             document.getElementById('setEarlyLimit').value = data.early_bird_limit_minutes;
             document.getElementById('setMaxPenalty').value = CONFIG.maxDailyPenalty;
+            document.getElementById('setEnableGeofencing').checked = CONFIG.enableGeofencing;
+            document.getElementById('setOfficeLat').value = CONFIG.officeLatitude;
+            document.getElementById('setOfficeLng').value = CONFIG.officeLongitude;
+            document.getElementById('setRadius').value = CONFIG.allowedRadiusMeters;
         }
     }
 }
 window.saveSettings = async function() {
     const p = document.getElementById('setAdminPass').value, r = parseInt(document.getElementById('setReward').value), d = parseInt(document.getElementById('setPenalty').value), l = parseInt(document.getElementById('setEarlyLimit').value), m = parseInt(document.getElementById('setMaxPenalty').value);
-    const s = { admin_password: p, late_penalty_per_minute: d, early_bird_reward: r, early_bird_limit_minutes: l, max_daily_penalty: m };
+    const geo = document.getElementById('setEnableGeofencing').checked;
+    const lat = parseFloat(document.getElementById('setOfficeLat').value);
+    const lng = parseFloat(document.getElementById('setOfficeLng').value);
+    const rad = parseInt(document.getElementById('setRadius').value);
+    
+    const s = { admin_password: p, late_penalty_per_minute: d, early_bird_reward: r, early_bird_limit_minutes: l, max_daily_penalty: m, enable_geofencing: geo, office_latitude: lat, office_longitude: lng, allowed_radius_meters: rad };
     const { error } = await supabaseClient.from('settings_config').update(s).eq('id', 1); if (error) await supabaseClient.from('settings_config').insert({ id: 1, ...s });
     alert("Tersimpan!"); loadSettings();
 };

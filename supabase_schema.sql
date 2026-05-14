@@ -23,15 +23,23 @@ CREATE TABLE settings_config (
     early_bird_reward DECIMAL(10, 2) DEFAULT 15000.00,
     late_penalty_per_minute DECIMAL(10, 2) DEFAULT 1000.00,
     max_daily_penalty DECIMAL(10, 2) DEFAULT 50000.00, -- Maks denda per hari
+    enable_geofencing BOOLEAN DEFAULT FALSE,
+    office_latitude DECIMAL(10, 8) DEFAULT -6.200000,
+    office_longitude DECIMAL(11, 8) DEFAULT 106.816666,
+    allowed_radius_meters INTEGER DEFAULT 100,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
 -- Insert default settings
-INSERT INTO settings_config (work_start_time, early_bird_time, early_bird_reward, late_penalty_per_minute, max_daily_penalty) 
-VALUES ('08:00:00', '07:50:00', 15000.00, 1000.00, 50000.00);
+INSERT INTO settings_config (work_start_time, early_bird_time, early_bird_reward, late_penalty_per_minute, max_daily_penalty, enable_geofencing, office_latitude, office_longitude, allowed_radius_meters) 
+VALUES ('08:00:00', '07:50:00', 15000.00, 1000.00, 50000.00, FALSE, -6.200000, 106.816666, 100);
 
 -- MIGRASI: Jika tabel sudah ada, jalankan ini untuk menambah kolom baru
 -- ALTER TABLE settings_config ADD COLUMN IF NOT EXISTS max_daily_penalty DECIMAL(10, 2) DEFAULT 50000.00;
+-- ALTER TABLE settings_config ADD COLUMN IF NOT EXISTS enable_geofencing BOOLEAN DEFAULT FALSE;
+-- ALTER TABLE settings_config ADD COLUMN IF NOT EXISTS office_latitude DECIMAL(10, 8) DEFAULT -6.200000;
+-- ALTER TABLE settings_config ADD COLUMN IF NOT EXISTS office_longitude DECIMAL(11, 8) DEFAULT 106.816666;
+-- ALTER TABLE settings_config ADD COLUMN IF NOT EXISTS allowed_radius_meters INTEGER DEFAULT 100;
 
 -- Tabel 3: attendance_logs
 -- Log absensi harian dengan kalkulasi reward dan denda
