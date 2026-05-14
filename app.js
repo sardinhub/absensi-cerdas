@@ -104,7 +104,11 @@ window.initCamera = async function(mode) {
         const api = window.faceapi || faceapi, MODEL_URL = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights';
         if (!api.nets.tinyFaceDetector.params) await Promise.all([api.nets.tinyFaceDetector.loadFromUri(MODEL_URL), api.nets.faceLandmark68Net.loadFromUri(MODEL_URL), api.nets.faceRecognitionNet.loadFromUri(MODEL_URL)]);
         if (mode === 'register') { document.getElementById('regCameraBtn').classList.add('hidden'); document.getElementById('regSaveBtn').classList.remove('hidden'); }
-        else { document.getElementById('cameraInitAction').classList.add('hidden'); document.getElementById('attendanceActions').classList.remove('hidden'); }
+        else { 
+            document.getElementById('cameraInitAction').classList.add('hidden'); 
+            document.getElementById('attendanceActions').classList.remove('hidden');
+            checkAttendanceStatus(); // Cek status segera setelah kamera menyala
+        }
     } catch (e) { alert("Gagal aktifkan kamera: " + e.message); }
     btn.disabled = false; btn.innerHTML = 'Nyalakan Kamera';
 };
@@ -170,20 +174,26 @@ window.saveManualAttendance = async () => {
 // --- ATTENDANCE ---
 window.checkAttendanceStatus = async function() {
     const empId = attendanceEmployeeSelect.value;
-    const btnSec = document.getElementById('attendanceActions');
-    if (!btnSec) return;
-    const btnIn = btnSec.querySelector('button:first-child');
-    const btnOut = btnSec.querySelector('button:last-child');
+    const btnIn = document.getElementById('btnAbsenMasuk');
+    const btnOut = document.getElementById('btnAbsenPulang');
+    if (!btnIn || !btnOut) return;
     
     // Default: Reset dan disabled
     btnIn.disabled = true; btnOut.disabled = true;
     
     if (!empId) return; // Jika belum pilih nama, biarkan disabled
+    
+    // Beri efek loading sementara ngecek
+    const oldInTxt = btnIn.innerHTML; const oldOutTxt = btnOut.innerHTML;
+    btnIn.innerHTML = '<span class="btn-spinner" style="width:16px;height:16px;"></span>';
+    btnOut.innerHTML = '<span class="btn-spinner" style="width:16px;height:16px;"></span>';
 
     // Cek status hari ini
     const today = new Date(); today.setHours(0,0,0,0);
     const { data: logs } = await supabaseClient.from('attendance_logs').select('type').eq('employee_id', empId).gte('check_in_time', today.toISOString());
     
+    btnIn.innerHTML = oldInTxt; btnOut.innerHTML = oldOutTxt;
+
     const hasIn = logs?.some(l => l.type === 'in' || l.type === 'manual');
     const hasOut = logs?.some(l => l.type === 'out');
 
@@ -204,9 +214,8 @@ window.checkAttendanceStatus = async function() {
 
 window.handleAttendance = async function(type) {
     const empId = attendanceEmployeeSelect.value; if (!empId) return alert("Pilih nama!");
-    const btnSec = document.getElementById('attendanceActions');
-    const btnIn = btnSec.querySelector('button:first-child');
-    const btnOut = btnSec.querySelector('button:last-child');
+    const btnIn = document.getElementById('btnAbsenMasuk');
+    const btnOut = document.getElementById('btnAbsenPulang');
     const clickedBtn = type === 'in' ? btnIn : btnOut;
 
     // Simpan teks asli tombol

@@ -63,10 +63,10 @@
                             </button>
                         </div>
                         <div id="attendanceActions" class="hidden" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 20px;">
-                            <button class="btn btn-primary" onclick="handleAttendance('in')" style="padding: 14px;">
+                            <button id="btnAbsenMasuk" class="btn btn-primary" onclick="handleAttendance('in')" disabled style="padding: 14px;">
                                 <i class="ri-login-box-line"></i> MASUK
                             </button>
-                            <button class="btn btn-secondary" onclick="handleAttendance('out')" style="background: var(--danger-light); color: var(--danger); border: 1px solid rgba(220, 38, 38, 0.15); padding: 14px;">
+                            <button id="btnAbsenPulang" class="btn btn-secondary" onclick="handleAttendance('out')" disabled style="background: var(--danger-light); color: var(--danger); border: 1px solid rgba(220, 38, 38, 0.15); padding: 14px;">
                                 <i class="ri-logout-box-line"></i> PULANG
                             </button>
                         </div>
