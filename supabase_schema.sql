@@ -20,9 +20,11 @@ CREATE TABLE settings_config (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
     work_start_time TIME NOT NULL DEFAULT '08:00:00',
     early_bird_time TIME NOT NULL DEFAULT '07:50:00',
+    early_bird_limit_minutes INTEGER DEFAULT 10,
     early_bird_reward DECIMAL(10, 2) DEFAULT 15000.00,
     late_penalty_per_minute DECIMAL(10, 2) DEFAULT 1000.00,
     max_daily_penalty DECIMAL(10, 2) DEFAULT 50000.00, -- Maks denda per hari
+    admin_password VARCHAR(255) DEFAULT '123',
     enable_geofencing BOOLEAN DEFAULT FALSE,
     office_latitude DECIMAL(10, 8) DEFAULT -6.200000,
     office_longitude DECIMAL(11, 8) DEFAULT 106.816666,
@@ -40,6 +42,8 @@ VALUES ('08:00:00', '07:50:00', 15000.00, 1000.00, 50000.00, FALSE, -6.200000, 1
 -- ALTER TABLE settings_config ADD COLUMN IF NOT EXISTS office_latitude DECIMAL(10, 8) DEFAULT -6.200000;
 -- ALTER TABLE settings_config ADD COLUMN IF NOT EXISTS office_longitude DECIMAL(11, 8) DEFAULT 106.816666;
 -- ALTER TABLE settings_config ADD COLUMN IF NOT EXISTS allowed_radius_meters INTEGER DEFAULT 100;
+-- ALTER TABLE settings_config ADD COLUMN IF NOT EXISTS admin_password VARCHAR(255) DEFAULT '123';
+-- ALTER TABLE settings_config ADD COLUMN IF NOT EXISTS early_bird_limit_minutes INTEGER DEFAULT 10;
 
 -- Tabel 3: attendance_logs
 -- Log absensi harian dengan kalkulasi reward dan denda
