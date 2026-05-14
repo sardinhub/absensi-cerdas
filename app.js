@@ -89,10 +89,10 @@ async function loadStaffTable() {
     const { data } = await supabaseClient.from('employees').select('id, employee_id, full_name, position, profile_picture');
     const body = document.getElementById('staffTableBody'); body.innerHTML = '';
     data?.forEach(emp => {
-        const photo = emp.profile_picture ? `<img src="${emp.profile_picture}" style="width:45px; height:45px; border-radius:50%; object-fit:cover; border:2px solid rgba(255,255,255,0.1);">` : '<div style="width:45px; height:45px; border-radius:50%; background:rgba(255,255,255,0.05); display:flex; align-items:center; justify-content:center;"><i class="ri-user-line"></i></div>';
+        const photo = emp.profile_picture ? `<img src="${emp.profile_picture}" style="width:42px; height:42px; border-radius:50%; object-fit:cover; border:2px solid var(--border-color);">` : '<div style="width:42px; height:42px; border-radius:50%; background:var(--primary-light); display:flex; align-items:center; justify-content:center; color:var(--primary); font-size:1.1rem;"><i class="ri-user-line"></i></div>';
         body.innerHTML += `<tr>
-            <td style="width:60px; padding:10px;">${photo}</td>
-            <td>${emp.employee_id}</td><td><strong>${emp.full_name}</strong></td><td>${emp.position}</td>
+            <td style="width:55px; padding:10px;">${photo}</td>
+            <td style="font-weight:500; color:var(--text-muted);">${emp.employee_id}</td><td><strong style="color:var(--text-main);">${emp.full_name}</strong></td><td style="color:var(--text-muted);">${emp.position}</td>
             <td><button class="btn-icon btn-edit" onclick="openEditStaff('${emp.id}','${emp.full_name}','${emp.position}')"><i class="ri-edit-line"></i></button>
             <button class="btn-icon btn-delete" onclick="deleteStaff('${emp.id}')"><i class="ri-delete-bin-line"></i></button></td></tr>`;
     });
@@ -198,9 +198,9 @@ async function loadReport() {
         else if (log.type === 'manual') { grouped[key].status = log.status; grouped[key].in = log.status; grouped[key].isComplete = true; }
     });
     const rows = Object.values(grouped).filter(r => r.isComplete).reverse();
-    body.innerHTML = rows.length === 0 ? '<tr><td colspan="8">Laporan muncul setelah Scan Pulang.</td></tr>' : '';
+    body.innerHTML = rows.length === 0 ? '<tr><td colspan="8" style="text-align:center; color:var(--text-light); padding:30px;">Laporan muncul setelah Scan Pulang.</td></tr>' : '';
     rows.forEach(r => {
-        body.innerHTML += `<tr><td><strong>${r.name}</strong></td><td>${r.date}</td><td>${r.in}</td><td>${r.out}</td><td>${r.late > 0 ? `${r.late} Menit` : '-'}</td><td><span class="badge">${r.status}</span></td><td style="color:#10b981;">Rp ${r.reward.toLocaleString()}</td><td style="color:#ef4444;">Rp ${r.penalty.toLocaleString()}</td></tr>`;
+        body.innerHTML += `<tr><td><strong style="color:var(--text-main);">${r.name}</strong></td><td>${r.date}</td><td>${r.in}</td><td>${r.out}</td><td>${r.late > 0 ? `${r.late} Menit` : '-'}</td><td><span class="badge">${r.status}</span></td><td style="color:var(--success); font-weight:600;">Rp ${r.reward.toLocaleString()}</td><td style="color:var(--danger); font-weight:600;">Rp ${r.penalty.toLocaleString()}</td></tr>`;
     });
     updateReportStats(rows.length, rows.filter(r => r.status==='On-Time'||r.status==='Early Bird').length, rows.filter(r => r.status==='Late').length, rows.reduce((s, r)=> s+r.reward, 0), rows.reduce((s, r)=> s+r.penalty, 0));
 }
@@ -209,10 +209,10 @@ function updateReportStats(total, onTime, late, reward, penalty) {
     const summary = document.getElementById('reportSummary'); if (!summary) return;
     summary.innerHTML = `<div class="stat-grid">
         <div class="stat-card"><i class="ri-history-line"></i><h4>Total Log</h4><p>${total}</p></div>
-        <div class="stat-card"><i class="ri-checkbox-circle-line" style="color:#10b981;"></i><h4>Tepat Waktu</h4><p style="color:#10b981;">${onTime}</p></div>
-        <div class="stat-card"><i class="ri-error-warning-line" style="color:#ef4444;"></i><h4>Terlambat</h4><p style="color:#ef4444;">${late}</p></div>
-        <div class="stat-card"><i class="ri-copper-coin-line" style="color:#f59e0b;"></i><h4>Total Reward</h4><p style="color:#10b981;">Rp ${reward.toLocaleString()}</p></div>
-        <div class="stat-card"><i class="ri-money-dollar-circle-line" style="color:#ef4444;"></i><h4>Total Denda</h4><p style="color:#ef4444;">Rp ${penalty.toLocaleString()}</p></div>
+        <div class="stat-card"><i class="ri-checkbox-circle-line" style="color:var(--success);"></i><h4>Tepat Waktu</h4><p style="color:var(--success);">${onTime}</p></div>
+        <div class="stat-card"><i class="ri-error-warning-line" style="color:var(--danger);"></i><h4>Terlambat</h4><p style="color:var(--danger);">${late}</p></div>
+        <div class="stat-card"><i class="ri-copper-coin-line" style="color:var(--warning);"></i><h4>Total Reward</h4><p style="color:var(--success);">Rp ${reward.toLocaleString()}</p></div>
+        <div class="stat-card"><i class="ri-money-dollar-circle-line" style="color:var(--danger);"></i><h4>Total Denda</h4><p style="color:var(--danger);">Rp ${penalty.toLocaleString()}</p></div>
     </div>`;
 }
 
