@@ -22,12 +22,16 @@ CREATE TABLE settings_config (
     early_bird_time TIME NOT NULL DEFAULT '07:50:00',
     early_bird_reward DECIMAL(10, 2) DEFAULT 15000.00,
     late_penalty_per_minute DECIMAL(10, 2) DEFAULT 1000.00,
+    max_daily_penalty DECIMAL(10, 2) DEFAULT 50000.00, -- Maks denda per hari
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
 -- Insert default settings
-INSERT INTO settings_config (work_start_time, early_bird_time, early_bird_reward, late_penalty_per_minute) 
-VALUES ('08:00:00', '07:50:00', 15000.00, 1000.00);
+INSERT INTO settings_config (work_start_time, early_bird_time, early_bird_reward, late_penalty_per_minute, max_daily_penalty) 
+VALUES ('08:00:00', '07:50:00', 15000.00, 1000.00, 50000.00);
+
+-- MIGRASI: Jika tabel sudah ada, jalankan ini untuk menambah kolom baru
+-- ALTER TABLE settings_config ADD COLUMN IF NOT EXISTS max_daily_penalty DECIMAL(10, 2) DEFAULT 50000.00;
 
 -- Tabel 3: attendance_logs
 -- Log absensi harian dengan kalkulasi reward dan denda

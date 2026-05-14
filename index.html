@@ -248,7 +248,7 @@
                         <!-- Group: Finansial -->
                         <div style="background: var(--bg-input); padding: 20px; border-radius: 12px; border: 1px solid var(--border-color);">
                             <label class="form-label" style="margin-bottom: 14px;"><i class="ri-wallet-3-line"></i> Konfigurasi Insentif & Denda</label>
-                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+                            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px;">
                                 <div>
                                     <label class="form-label" style="font-size: 0.7rem;">Reward Early Bird</label>
                                     <input type="number" id="setReward" class="form-input" placeholder="Rp">
@@ -257,7 +257,12 @@
                                     <label class="form-label" style="font-size: 0.7rem;">Denda Terlambat / Menit</label>
                                     <input type="number" id="setPenalty" class="form-input" placeholder="Rp">
                                 </div>
+                                <div>
+                                    <label class="form-label" style="font-size: 0.7rem;">Maks Denda / Hari</label>
+                                    <input type="number" id="setMaxPenalty" class="form-input" placeholder="Rp" value="50000">
+                                </div>
                             </div>
+                            <small style="color: var(--text-light); font-size: 0.7rem; margin-top: 10px; display: block;">Denda tidak berlaku untuk input manual (Sakit / Ijin / Tugas Luar).</small>
                         </div>
 
                         <!-- Group: Waktu -->
