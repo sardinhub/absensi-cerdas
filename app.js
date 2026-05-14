@@ -144,28 +144,52 @@ window.saveManualAttendance = async () => {
 // --- ATTENDANCE ---
 window.handleAttendance = async function(type) {
     const empId = attendanceEmployeeSelect.value; if (!empId) return alert("Pilih nama!");
-    const btnSec = document.getElementById('attendanceActions'), btns = btnSec.querySelectorAll('button');
-    btns.forEach(b => b.disabled = true);
+    const btnSec = document.getElementById('attendanceActions');
+    const btnIn = btnSec.querySelector('button:first-child');
+    const btnOut = btnSec.querySelector('button:last-child');
+    const clickedBtn = type === 'in' ? btnIn : btnOut;
+
+    // Simpan teks asli tombol
+    const originalInHTML = btnIn.innerHTML;
+    const originalOutHTML = btnOut.innerHTML;
+
+    // Set loading state
+    function setLoading() {
+        btnIn.disabled = true; btnOut.disabled = true;
+        btnIn.classList.add('btn-loading'); btnOut.classList.add('btn-loading');
+        clickedBtn.innerHTML = '<span class="btn-spinner"></span> Memproses...';
+    }
+
+    // Reset tombol ke state semula
+    function resetButtons() {
+        btnIn.disabled = false; btnOut.disabled = false;
+        btnIn.classList.remove('btn-loading'); btnOut.classList.remove('btn-loading');
+        btnIn.innerHTML = originalInHTML;
+        btnOut.innerHTML = originalOutHTML;
+    }
+
+    setLoading();
     try {
         const today = new Date(); today.setHours(0,0,0,0);
         const { data: ex } = await supabaseClient.from('attendance_logs').select('id').eq('employee_id', empId).eq('type', type).gte('check_in_time', today.toISOString());
-        if (ex?.length > 0) { alert("Sudah absen tadi."); return btns.forEach(b => b.disabled = false); }
+        if (ex?.length > 0) { alert("Sudah absen tadi."); return resetButtons(); }
         const emp = allEmployees.find(e => e.id === empId), api = window.faceapi || faceapi;
-        if (!emp.face_embedding) { alert("Staf ini belum memiliki data wajah! Silakan registrasi ulang."); return btns.forEach(b => b.disabled = false); }
+        if (!emp.face_embedding) { alert("Staf ini belum memiliki data wajah! Silakan registrasi ulang."); return resetButtons(); }
         const det = await api.detectSingleFace(videoFeed, new api.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
-        if (!det) { alert("Wajah tidak terdeteksi di kamera! Pastikan posisi wajah terlihat jelas."); return btns.forEach(b => b.disabled = false); }
+        if (!det) { alert("Wajah tidak terdeteksi di kamera! Pastikan posisi wajah terlihat jelas."); return resetButtons(); }
         // Parse face embedding — handle JSON string dari Supabase
         const storedEmbedding = parseFaceEmbedding(emp.face_embedding);
         const distance = api.euclideanDistance(det.descriptor, storedEmbedding);
         console.log(`[FaceMatch] ${emp.full_name} — Jarak: ${distance.toFixed(4)} | Threshold: ${FACE_MATCH_THRESHOLD}`);
-        if (distance > FACE_MATCH_THRESHOLD) { alert(`Wajah tidak cocok! (Jarak: ${distance.toFixed(2)}, Batas: ${FACE_MATCH_THRESHOLD})\nPastikan pencahayaan cukup dan posisi wajah lurus ke kamera.`); return btns.forEach(b => b.disabled = false); }
+        if (distance > FACE_MATCH_THRESHOLD) { alert(`Wajah tidak cocok! (Jarak: ${distance.toFixed(2)}, Batas: ${FACE_MATCH_THRESHOLD})\nPastikan pencahayaan cukup dan posisi wajah lurus ke kamera.`); return resetButtons(); }
         const now = new Date(), sched = getSchedule(now.getDay());
         if (type === 'out' && sched && now < parseTime(sched.out)) {
             window.pendingAttendanceData = { empId, employee: emp, type, now };
-            document.getElementById('earlyOutModal').classList.remove('hidden'); btns.forEach(b => b.disabled = false); return;
+            document.getElementById('earlyOutModal').classList.remove('hidden'); resetButtons(); return;
         }
         await saveAttendance(empId, emp, type, now);
-    } catch (e) { alert(e.message); btns.forEach(b => b.disabled = false); }
+        resetButtons();
+    } catch (e) { alert(e.message); resetButtons(); }
 };
 
 async function saveAttendance(empId, employee, type, now, reason = "") {
