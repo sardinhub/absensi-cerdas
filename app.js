@@ -65,14 +65,66 @@ function getSchedule(dayIndex) {
 }
 
 // --- ADMIN & TAB SYSTEM ---
-window.toggleAdminLogin = () => isAdmin ? (isAdmin = false, document.body.classList.remove('is-admin'), document.getElementById('adminBtn').innerHTML = '<i class="ri-admin-line"></i> Login Admin', switchTab('checkin')) : document.getElementById('loginModal').classList.toggle('hidden');
+window.toggleAdminLogin = () => {
+    if (isAdmin) {
+        isAdmin = false; 
+        document.body.classList.remove('is-admin'); 
+        document.getElementById('adminBtn').innerHTML = '<i class="ri-admin-line"></i> Login Admin'; 
+        switchTab('checkin');
+        checkSystemStatus(); // Tampilkan kembali overlay offline jika di luar jam kantor (Minggu)
+    } else {
+        document.getElementById('loginModal').classList.toggle('hidden');
+    }
+};
+
 window.processAdminLogin = () => {
     const pass = document.getElementById('loginPass').value;
     if (pass === CONFIG.adminPassword) {
-        isAdmin = true; document.body.classList.add('is-admin');
+        isAdmin = true; 
+        document.body.classList.add('is-admin');
         document.getElementById('adminBtn').innerHTML = '<i class="ri-logout-box-line"></i> Logout Admin';
         document.getElementById('loginModal').classList.add('hidden');
+        document.getElementById('offlineOverlay')?.classList.add('hidden'); // Sembunyikan overlay offline jika login admin sukses
     } else alert("Password Salah!");
+};
+
+// --- OFFLINE ADMIN BYPASS ---
+window.showOfflineBypassForm = () => {
+    document.getElementById('offlineMainContent').classList.add('hidden');
+    document.getElementById('offlineBypassForm').classList.remove('hidden');
+    document.getElementById('offlineAdminPass').value = '';
+    document.getElementById('offlineErrorMsg').classList.add('hidden');
+    document.getElementById('offlineAdminPass').focus();
+};
+
+window.hideOfflineBypassForm = () => {
+    document.getElementById('offlineBypassForm').classList.add('hidden');
+    document.getElementById('offlineMainContent').classList.remove('hidden');
+};
+
+window.submitOfflineBypass = () => {
+    const pass = document.getElementById('offlineAdminPass').value;
+    if (pass === CONFIG.adminPassword) {
+        isAdmin = true;
+        document.body.classList.add('is-admin');
+        document.getElementById('adminBtn').innerHTML = '<i class="ri-logout-box-line"></i> Logout Admin';
+        document.getElementById('offlineOverlay').classList.add('hidden');
+        
+        // Kembalikan form offline bypass ke kondisi awal
+        hideOfflineBypassForm();
+        
+        // Arahkan admin ke halaman manajemen staf agar bisa langsung mengelola aplikasi
+        switchTab('register');
+    } else {
+        const errMsg = document.getElementById('offlineErrorMsg');
+        errMsg.classList.remove('hidden');
+        
+        // Efek getar untuk input salah (micro-animation premium)
+        const form = document.getElementById('offlineBypassForm');
+        form.style.animation = 'none';
+        form.offsetHeight; // trigger reflow
+        form.style.animation = 'shake 0.4s ease';
+    }
 };
 
 window.switchTab = async function(tab) {

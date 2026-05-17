@@ -403,10 +403,43 @@
         </div>
     </div>
 
-    <div id="offlineOverlay" class="hidden" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(15,23,42,0.96); z-index:50000; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center;">
-        <i class="ri-moon-clear-line" style="font-size:5rem; color:var(--primary); margin-bottom:20px;"></i>
-        <h1 style="color:white; font-size: 1.8rem;">SISTEM OFFLINE</h1>
-        <p style="color:#94a3b8; margin-top: 8px;">Sistem beroperasi Senin - Sabtu saja.</p>
+    <div id="offlineOverlay" class="hidden" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(15,23,42,0.98); z-index:50000; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding: 20px;">
+        <!-- Tampilan Utama Offline -->
+        <div id="offlineMainContent" class="glass-card" style="background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(255,255,255,0.08); max-width: 420px; width: 100%; padding: 40px 30px; border-radius: var(--radius-xl); box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5); text-align: center; color: white;">
+            <div style="width: 80px; height: 80px; border-radius: 20px; background: rgba(79, 70, 229, 0.15); display: flex; align-items: center; justify-content: center; color: var(--primary); font-size: 3rem; margin: 0 auto 24px;">
+                <i class="ri-moon-clear-line"></i>
+            </div>
+            <h1 style="color:white; font-size: 1.8rem; font-weight: 700; margin-bottom: 8px; letter-spacing: -0.5px;">SISTEM OFFLINE</h1>
+            <p style="color:#94a3b8; font-size: 0.95rem; margin-bottom: 30px; line-height: 1.5;">Sistem beroperasi Senin - Sabtu saja. Hubungi admin untuk informasi lebih lanjut.</p>
+            
+            <button class="btn btn-secondary" onclick="showOfflineBypassForm()" style="width: 100%; background: rgba(255,255,255,0.05); color: #e2e8f0; border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; padding: 14px; font-weight: 600; font-size: 0.9rem; justify-content: center; transition: all 0.2s ease;">
+                <i class="ri-admin-line"></i> Kelola Aplikasi (Admin)
+            </button>
+        </div>
+
+        <!-- Form Login Bypass Admin -->
+        <div id="offlineBypassForm" class="glass-card hidden" style="background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(255,255,255,0.08); max-width: 420px; width: 100%; padding: 40px 30px; border-radius: var(--radius-xl); box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5); text-align: center; color: white;">
+            <div style="width: 80px; height: 80px; border-radius: 20px; background: rgba(79, 70, 229, 0.15); display: flex; align-items: center; justify-content: center; color: var(--primary); font-size: 3rem; margin: 0 auto 24px;">
+                <i class="ri-lock-password-line"></i>
+            </div>
+            <h2 style="color:white; font-size: 1.5rem; font-weight: 700; margin-bottom: 8px;">Akses Kontrol Admin</h2>
+            <p style="color:#94a3b8; font-size: 0.85rem; margin-bottom: 24px;">Masukkan password admin untuk mengelola aplikasi di luar jam kerja.</p>
+            
+            <div style="margin-bottom: 20px; text-align: left;">
+                <label class="form-label" style="color: #94a3b8;">Password Admin</label>
+                <input type="password" id="offlineAdminPass" class="form-input" placeholder="Masukkan password" style="background: rgba(15, 23, 42, 0.5); border: 1px solid rgba(255,255,255,0.1); color: white; border-radius: 8px; text-align: center; padding: 12px;" onkeydown="if(event.key === 'Enter') submitOfflineBypass()">
+                <div id="offlineErrorMsg" style="color: var(--danger); font-size: 0.8rem; margin-top: 8px; font-weight: 500;" class="hidden">Password Salah!</div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                <button class="btn btn-secondary" onclick="hideOfflineBypassForm()" style="background: rgba(255,255,255,0.05); color: #e2e8f0; border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; padding: 12px; font-weight: 600; justify-content: center;">
+                    Batal
+                </button>
+                <button class="btn btn-primary" onclick="submitOfflineBypass()" style="border-radius: 10px; padding: 12px; font-weight: 600; justify-content: center;">
+                    Bypass & Masuk
+                </button>
+            </div>
+        </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
