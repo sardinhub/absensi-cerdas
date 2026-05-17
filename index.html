@@ -20,6 +20,7 @@
             </div>
             <ul class="nav-links">
                 <li class="active" id="tabCheckIn"><a href="javascript:void(0)" onclick="switchTab('checkin')"><i class="ri-scan-2-line"></i> Absensi</a></li>
+                <li id="tabPiket"><a href="javascript:void(0)" onclick="switchTab('piket')"><i class="ri-shield-flash-line"></i> Absensi Piket</a></li>
                 <li id="tabEmployees" class="admin-only"><a href="javascript:void(0)" onclick="switchTab('register')"><i class="ri-group-line"></i> Manajemen Staf</a></li>
                 <li id="tabHistory" class="admin-only"><a href="javascript:void(0)" onclick="switchTab('history')"><i class="ri-history-line"></i> Riwayat</a></li>
                 <li id="tabReport" class="admin-only"><a href="javascript:void(0)" onclick="switchTab('report')"><i class="ri-file-chart-line"></i> Laporan</a></li>
@@ -82,6 +83,46 @@
                             <div id="waitingState" class="waiting-state">
                                 <i class="ri-user-search-line"></i>
                                 <p style="margin-top: 8px; font-size: 0.9rem;">Menunggu Scan...</p>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+            </div>
+
+            <!-- Tab: Absensi Piket -->
+            <div id="piketGrid" class="hidden">
+                <div class="grid-layout">
+                    <section class="scan-section glass-card" style="text-align: center;">
+                        <div style="text-align: left; margin-bottom: 16px;">
+                            <label class="form-label">Pilih Nama Anda (Piket)</label>
+                            <select id="piketEmployeeSelect" class="form-input" onchange="checkPiketStatus()"><option value="">-- Pilih Nama --</option></select>
+                        </div>
+                        <div class="square-camera"><video id="videoFeedPiket" autoplay muted playsinline></video></div>
+                        <div id="cameraInitActionPiket" style="margin-top: 20px;">
+                            <button class="btn btn-primary" style="width: 100%; padding: 14px;" onclick="initCamera('piket')">
+                                <i class="ri-camera-line"></i> Aktifkan Kamera Piket
+                            </button>
+                        </div>
+                        <div id="piketActions" class="hidden" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 20px;">
+                            <button id="btnPiketMasuk" class="btn btn-primary" onclick="handlePiketAttendance('in')" disabled style="padding: 14px; background: var(--warning); box-shadow: 0 1px 3px rgba(217, 119, 6, 0.3); border: none;">
+                                <i class="ri-login-box-line"></i> MASUK PIKET
+                            </button>
+                            <button id="btnPiketPulang" class="btn btn-secondary" onclick="handlePiketAttendance('out')" disabled style="background: var(--danger-light); color: var(--danger); border: 1px solid rgba(220, 38, 38, 0.15); padding: 14px;">
+                                <i class="ri-logout-box-line"></i> PULANG PIKET
+                            </button>
+                        </div>
+                    </section>
+                    <section class="results-section">
+                        <div class="glass-card result-card">
+                            <h2>Status Terakhir Piket</h2>
+                            <div id="resultBoxPiket" class="result-box hidden" style="background: var(--warning-light); border: 1px solid rgba(217, 119, 6, 0.15);">
+                                <h3 id="resultNamePiket" style="color: var(--text-main); font-weight: 700;">Nama</h3>
+                                <p id="resultTimePiket" style="color: var(--text-muted); margin: 6px 0;">Jam</p>
+                                <span id="resultBadgePiket" class="badge" style="background: rgba(217, 119, 6, 0.1); color: var(--warning);">Status</span>
+                            </div>
+                            <div id="waitingStatePiket" class="waiting-state">
+                                <i class="ri-shield-flash-line" style="color: var(--warning);"></i>
+                                <p style="margin-top: 8px; font-size: 0.9rem;">Menunggu Scan Piket...</p>
                             </div>
                         </div>
                     </section>
@@ -303,6 +344,22 @@
                                         <label class="form-label" style="font-size: 0.7rem;">Jam Pulang</label>
                                         <input type="time" id="setWorkEndSaturday" class="form-input" style="background: white; padding: 8px 12px;">
                                     </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Group: Jam Piket Fleksibel -->
+                        <div style="background: var(--bg-input); padding: 20px; border-radius: 12px; border: 1px solid var(--border-color);">
+                            <label class="form-label" style="margin-bottom: 14px;"><i class="ri-shield-flash-line"></i> Konfigurasi Jam Piket</label>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; align-items: center;">
+                                <span style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary);">Jadwal Piket</span>
+                                <div>
+                                    <label class="form-label" style="font-size: 0.7rem;">Jam Masuk Piket</label>
+                                    <input type="time" id="setPiketStart" class="form-input" style="background: white; padding: 8px 12px;">
+                                </div>
+                                <div>
+                                    <label class="form-label" style="font-size: 0.7rem;">Jam Pulang Piket</label>
+                                    <input type="time" id="setPiketEnd" class="form-input" style="background: white; padding: 8px 12px;">
                                 </div>
                             </div>
                         </div>
