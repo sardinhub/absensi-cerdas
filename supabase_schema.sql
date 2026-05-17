@@ -24,6 +24,9 @@ CREATE TABLE settings_config (
     early_bird_reward DECIMAL(10, 2) DEFAULT 15000.00,
     late_penalty_per_minute DECIMAL(10, 2) DEFAULT 1000.00,
     max_daily_penalty DECIMAL(10, 2) DEFAULT 50000.00, -- Maks denda per hari
+    work_end_time TIME DEFAULT '17:00:00', -- Jam pulang weekday
+    saturday_start_time TIME DEFAULT '07:45:00', -- Jam masuk Sabtu
+    saturday_end_time TIME DEFAULT '14:00:00', -- Jam pulang Sabtu
     admin_password VARCHAR(255) DEFAULT '123',
     enable_geofencing BOOLEAN DEFAULT FALSE,
     office_latitude DOUBLE PRECISION DEFAULT -6.200000,
@@ -33,8 +36,8 @@ CREATE TABLE settings_config (
 );
 
 -- Insert default settings
-INSERT INTO settings_config (work_start_time, early_bird_time, early_bird_reward, late_penalty_per_minute, max_daily_penalty, enable_geofencing, office_latitude, office_longitude, allowed_radius_meters) 
-VALUES ('08:00:00', '07:50:00', 15000.00, 1000.00, 50000.00, FALSE, -6.200000, 106.816666, 100);
+INSERT INTO settings_config (work_start_time, work_end_time, saturday_start_time, saturday_end_time, early_bird_time, early_bird_reward, late_penalty_per_minute, max_daily_penalty, enable_geofencing, office_latitude, office_longitude, allowed_radius_meters) 
+VALUES ('08:00:00', '17:00:00', '07:45:00', '14:00:00', '07:50:00', 15000.00, 1000.00, 50000.00, FALSE, -6.200000, 106.816666, 100);
 
 -- MIGRASI: Jika tabel sudah ada, jalankan ini untuk menambah kolom baru
 -- ALTER TABLE settings_config ADD COLUMN IF NOT EXISTS max_daily_penalty DECIMAL(10, 2) DEFAULT 50000.00;
@@ -44,6 +47,9 @@ VALUES ('08:00:00', '07:50:00', 15000.00, 1000.00, 50000.00, FALSE, -6.200000, 1
 -- ALTER TABLE settings_config ADD COLUMN IF NOT EXISTS allowed_radius_meters INTEGER DEFAULT 100;
 -- ALTER TABLE settings_config ADD COLUMN IF NOT EXISTS admin_password VARCHAR(255) DEFAULT '123';
 -- ALTER TABLE settings_config ADD COLUMN IF NOT EXISTS early_bird_limit_minutes INTEGER DEFAULT 10;
+-- ALTER TABLE settings_config ADD COLUMN IF NOT EXISTS work_end_time TIME DEFAULT '17:00:00';
+-- ALTER TABLE settings_config ADD COLUMN IF NOT EXISTS saturday_start_time TIME DEFAULT '07:45:00';
+-- ALTER TABLE settings_config ADD COLUMN IF NOT EXISTS saturday_end_time TIME DEFAULT '14:00:00';
 
 -- Tabel 3: attendance_logs
 -- Log absensi harian dengan kalkulasi reward dan denda

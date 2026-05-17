@@ -4,7 +4,22 @@ const MAX_PENALTY_FALLBACK = 50000; // Fallback maks denda jika config belum ter
 const SUPABASE_URL = 'https://besicmdkrakjxevmrzly.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJlc2ljbWRrcmFranhldm1yemx5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg2MTI2MzMsImV4cCI6MjA5NDE4ODYzM30.j61NxM-HY-FxXXfD1Hj2WWEZpLxofdVBSIsE0hHDjxM';
 
-let CONFIG = { adminPassword: '123', latePenaltyPerMinute: 1000, earlyBirdReward: 15000, earlyBirdBuffer: 10, maxDailyPenalty: 50000, enableGeofencing: false, officeLatitude: -6.200000, officeLongitude: 106.816666, allowedRadiusMeters: 100 };
+let CONFIG = { 
+    adminPassword: '123', 
+    latePenaltyPerMinute: 1000, 
+    earlyBirdReward: 15000, 
+    earlyBirdBuffer: 10, 
+    maxDailyPenalty: 50000, 
+    enableGeofencing: false, 
+    officeLatitude: -6.200000, 
+    officeLongitude: 106.816666, 
+    allowedRadiusMeters: 100,
+    // Jam Kerja Fleksibel (Default)
+    workStartTimeWeekday: '07:45:00',
+    workEndTimeWeekday: '17:00:00',
+    workStartTimeSaturday: '07:45:00',
+    workEndTimeSaturday: '14:00:00'
+};
 let supabaseClient;
 let isAdmin = false;
 let allEmployees = [];
@@ -60,8 +75,8 @@ function checkSystemStatus() { if (new Date().getDay() === 0) document.getElemen
 
 function getSchedule(dayIndex) {
     if (dayIndex === 0) return null; // Minggu libur
-    if (dayIndex === 6) return { in: '07:45:00', out: '14:00:00' }; // Sabtu
-    return { in: '07:45:00', out: '17:00:00' }; // Senin-Jumat
+    if (dayIndex === 6) return { in: CONFIG.workStartTimeSaturday, out: CONFIG.workEndTimeSaturday }; // Sabtu
+    return { in: CONFIG.workStartTimeWeekday, out: CONFIG.workEndTimeWeekday }; // Senin-Jumat
 }
 
 // --- ADMIN & TAB SYSTEM ---
@@ -495,6 +510,12 @@ async function loadSettings() {
         CONFIG.officeLongitude = parseFloat(data.office_longitude) || 106.816666;
         CONFIG.allowedRadiusMeters = parseInt(data.allowed_radius_meters) || 100;
 
+        // Jam Kerja Fleksibel dengan fallback jika kolom belum dibuat di DB
+        CONFIG.workStartTimeWeekday = data.work_start_time || '07:45:00';
+        CONFIG.workEndTimeWeekday = data.work_end_time || '17:00:00';
+        CONFIG.workStartTimeSaturday = data.saturday_start_time || '07:45:00';
+        CONFIG.workEndTimeSaturday = data.saturday_end_time || '14:00:00';
+
         if (document.getElementById('setAdminPass')) {
             document.getElementById('setAdminPass').value = data.admin_password;
             document.getElementById('setReward').value = data.early_bird_reward;
@@ -505,6 +526,12 @@ async function loadSettings() {
             document.getElementById('setOfficeLat').value = CONFIG.officeLatitude;
             document.getElementById('setOfficeLng').value = CONFIG.officeLongitude;
             document.getElementById('setRadius').value = CONFIG.allowedRadiusMeters;
+            
+            // Jam kerja fleksibel UI binding (ubah format TIME HH:MM:SS ke HH:MM)
+            document.getElementById('setWorkStartWeekday').value = (CONFIG.workStartTimeWeekday || '').substring(0, 5);
+            document.getElementById('setWorkEndWeekday').value = (CONFIG.workEndTimeWeekday || '').substring(0, 5);
+            document.getElementById('setWorkStartSaturday').value = (CONFIG.workStartTimeSaturday || '').substring(0, 5);
+            document.getElementById('setWorkEndSaturday').value = (CONFIG.workEndTimeSaturday || '').substring(0, 5);
         }
     }
 }
@@ -515,7 +542,34 @@ window.saveSettings = async function() {
     const lng = parseFloat(document.getElementById('setOfficeLng').value);
     const rad = parseInt(document.getElementById('setRadius').value);
     
-    const s = { admin_password: p, late_penalty_per_minute: d, early_bird_reward: r, early_bird_limit_minutes: l, max_daily_penalty: m, enable_geofencing: geo, office_latitude: lat, office_longitude: lng, allowed_radius_meters: rad };
+    // Format input waktu dari HH:MM ke HH:MM:SS untuk kompatibilitas DB TIME
+    const formatTimeInput = (t) => {
+        if (!t) return null;
+        if (t.split(':').length === 2) return t + ':00';
+        return t;
+    };
+    
+    const wInWeekday = formatTimeInput(document.getElementById('setWorkStartWeekday').value);
+    const wOutWeekday = formatTimeInput(document.getElementById('setWorkEndWeekday').value);
+    const wInSaturday = formatTimeInput(document.getElementById('setWorkStartSaturday').value);
+    const wOutSaturday = formatTimeInput(document.getElementById('setWorkEndSaturday').value);
+    
+    const s = { 
+        admin_password: p, 
+        late_penalty_per_minute: d, 
+        early_bird_reward: r, 
+        early_bird_limit_minutes: l, 
+        max_daily_penalty: m, 
+        enable_geofencing: geo, 
+        office_latitude: lat, 
+        office_longitude: lng, 
+        allowed_radius_meters: rad,
+        work_start_time: wInWeekday,
+        work_end_time: wOutWeekday,
+        saturday_start_time: wInSaturday,
+        saturday_end_time: wOutSaturday
+    };
+    
     let error;
     if (CONFIG.configId) {
         const res = await supabaseClient.from('settings_config').update(s).eq('id', CONFIG.configId);

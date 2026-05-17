@@ -275,6 +275,38 @@
                             </div>
                         </div>
 
+                        <!-- Group: Jam Kerja Fleksibel -->
+                        <div style="background: var(--bg-input); padding: 20px; border-radius: 12px; border: 1px solid var(--border-color);">
+                            <label class="form-label" style="margin-bottom: 14px;"><i class="ri-calendar-todo-line"></i> Konfigurasi Jam Kerja</label>
+                            <div style="display: grid; gap: 14px;">
+                                <!-- Weekday (Senin - Jumat) -->
+                                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; align-items: center;">
+                                    <span style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary);">Senin - Jumat</span>
+                                    <div>
+                                        <label class="form-label" style="font-size: 0.7rem;">Jam Masuk</label>
+                                        <input type="time" id="setWorkStartWeekday" class="form-input" style="background: white; padding: 8px 12px;">
+                                    </div>
+                                    <div>
+                                        <label class="form-label" style="font-size: 0.7rem;">Jam Pulang</label>
+                                        <input type="time" id="setWorkEndWeekday" class="form-input" style="background: white; padding: 8px 12px;">
+                                    </div>
+                                </div>
+                                
+                                <!-- Saturday (Sabtu) -->
+                                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; align-items: center; border-top: 1px solid var(--border-color); padding-top: 14px;">
+                                    <span style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary);">Sabtu</span>
+                                    <div>
+                                        <label class="form-label" style="font-size: 0.7rem;">Jam Masuk</label>
+                                        <input type="time" id="setWorkStartSaturday" class="form-input" style="background: white; padding: 8px 12px;">
+                                    </div>
+                                    <div>
+                                        <label class="form-label" style="font-size: 0.7rem;">Jam Pulang</label>
+                                        <input type="time" id="setWorkEndSaturday" class="form-input" style="background: white; padding: 8px 12px;">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                         <!-- Group: Lokasi (Geofencing) -->
                         <div style="background: var(--bg-input); padding: 20px; border-radius: 12px; border: 1px solid var(--border-color);">
                             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;">
