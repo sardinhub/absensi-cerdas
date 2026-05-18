@@ -64,8 +64,17 @@ document.addEventListener('DOMContentLoaded', () => {
             link.addEventListener('click', () => {
                 if (window.innerWidth <= 768) toggleMenu();
             });
-        });
     }
+
+    // Auto-refresh untuk Riwayat dan Laporan setiap 2 detik tanpa kedip (flicker)
+    setInterval(() => {
+        if (document.getElementById('tabHistory')?.classList.contains('active')) {
+            loadHistory(true);
+        }
+        if (document.getElementById('tabReport')?.classList.contains('active')) {
+            loadReport(true);
+        }
+    }, 2000);
 });
 
 function updateTime() {
@@ -178,8 +187,8 @@ window.switchTab = async function(tab) {
     document.getElementById('mainSubtitle').textContent = titles[tab][1];
     if (tab === 'piket') checkPiketStatus();
     if (tab === 'register') loadStaffTable();
-    if (tab === 'history') loadHistory();
-    if (tab === 'report') loadReport();
+    if (tab === 'history') loadHistory(false);
+    if (tab === 'report') loadReport(false);
 };
 
 function stopAllCameras() {
@@ -239,12 +248,16 @@ window.updateStaff = async () => {
 window.deleteStaff = async (id) => { if (confirm("Hapus staf ini selamanya?")) { await supabaseClient.from('employees').delete().eq('id', id); loadStaffTable(); loadEmployees(); } };
 
 // --- CRUD HISTORY ---
-async function loadHistory() {
+async function loadHistory(isAutoRefresh = false) {
     const bIn = document.getElementById('historyInTableBody'), bOut = document.getElementById('historyOutTableBody');
     if (!bIn || !bOut) return;
-    bIn.innerHTML = '<tr><td colspan="4">Memuat...</td></tr>'; bOut.innerHTML = '<tr><td colspan="4">Memuat...</td></tr>';
+    if (!isAutoRefresh) {
+        bIn.innerHTML = '<tr><td colspan="4">Memuat...</td></tr>'; bOut.innerHTML = '<tr><td colspan="4">Memuat...</td></tr>';
+    }
     const { data } = await supabaseClient.from('attendance_logs').select('*, employees(full_name)').order('check_in_time', { ascending: false }).limit(100);
-    bIn.innerHTML = ''; bOut.innerHTML = '';
+    
+    let tempIn = '';
+    let tempOut = '';
     window.activeLogs = window.activeLogs || {};
     data?.forEach(log => {
         const time = new Date(log.check_in_time).toLocaleString('id-ID');
@@ -269,7 +282,7 @@ async function loadHistory() {
             } else {
                 badgeStyle = 'style="background: rgba(79, 70, 229, 0.1); color: var(--primary); border: 1px solid rgba(79, 70, 229, 0.15); cursor: pointer;"';
             }
-            bIn.innerHTML += `<tr><td><strong>${name}</strong></td><td>${time}</td><td><span class="badge clickable-badge" ${badgeStyle} onclick="showHistoryDetail('${log.id}')" title="Klik untuk detail"><i class="ri-information-line"></i> ${log.status}</span></td><td>${action}</td></tr>`;
+            tempIn += `<tr><td><strong>${name}</strong></td><td>${time}</td><td><span class="badge clickable-badge" ${badgeStyle} onclick="showHistoryDetail('${log.id}')" title="Klik untuk detail"><i class="ri-information-line"></i> ${log.status}</span></td><td>${action}</td></tr>`;
         } 
         if (log.type === 'out' || log.type === 'piket_out' || (log.type === 'manual' && log.status === 'Tugas Luar')) {
             let noteText = '-';
@@ -281,11 +294,13 @@ async function loadHistory() {
             } else {
                 noteText = log.notes || '-';
             }
-            bOut.innerHTML += `<tr><td><strong>${name}</strong></td><td>${time}</td><td>${noteText}</td><td>${action}</td></tr>`;
+            tempOut += `<tr><td><strong>${name}</strong></td><td>${time}</td><td>${noteText}</td><td>${action}</td></tr>`;
         }
     });
+    bIn.innerHTML = tempIn;
+    bOut.innerHTML = tempOut;
 }
-window.deleteLog = async (id) => { if (confirm("Hapus log ini?")) { await supabaseClient.from('attendance_logs').delete().eq('id', id); loadHistory(); } };
+window.deleteLog = async (id) => { if (confirm("Hapus log ini?")) { await supabaseClient.from('attendance_logs').delete().eq('id', id); loadHistory(false); } };
 
 window.openManualAttendance = () => {
     const select = document.getElementById('manualEmpId');
@@ -295,7 +310,7 @@ window.openManualAttendance = () => {
 window.saveManualAttendance = async () => {
     const id = document.getElementById('manualEmpId').value, st = document.getElementById('manualStatus').value, nt = document.getElementById('manualNote').value;
     const { error } = await supabaseClient.from('attendance_logs').insert([{ employee_id: id, check_in_time: new Date().toISOString(), status: st, type: 'manual', notes: nt, reward_amount: 0, penalty_amount: 0 }]);
-    if (!error) { alert("Sukses!"); closeModals(); loadHistory(); }
+    if (!error) { alert("Sukses!"); closeModals(); loadHistory(false); }
 };
 
 
@@ -749,10 +764,12 @@ function showPiketAttendancePopup({ name, time, type, status, lateMins }) {
 }
 
 // --- REPORT ---
-async function loadReport() {
+async function loadReport(isAutoRefresh = false) {
     const emp = document.getElementById('reportEmployeeFilter')?.value || 'all', per = document.getElementById('reportPeriodFilter')?.value || 'daily', body = document.getElementById('reportTableBody');
     if (!body) return;
-    body.innerHTML = '<tr><td colspan="8">Memuat...</td></tr>';
+    if (!isAutoRefresh) {
+        body.innerHTML = '<tr><td colspan="8">Memuat...</td></tr>';
+    }
     let q = supabaseClient.from('attendance_logs').select('*, employees(full_name)');
     if (emp !== 'all') q = q.eq('employee_id', emp);
     const startOfToday = new Date(); startOfToday.setHours(0,0,0,0);
