@@ -64,6 +64,7 @@ document.addEventListener('DOMContentLoaded', () => {
             link.addEventListener('click', () => {
                 if (window.innerWidth <= 768) toggleMenu();
             });
+        });
     }
 
     // Auto-refresh untuk Riwayat dan Laporan setiap 2 detik tanpa kedip (flicker)
