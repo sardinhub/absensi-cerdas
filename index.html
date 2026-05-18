@@ -492,6 +492,19 @@
         </div>
     </div>
 
+    <!-- Attendance Detail Modal -->
+    <div id="attendanceDetailModal" class="modal hidden">
+        <div class="glass-card" style="width: 420px; text-align: center; position: relative; padding: 30px 24px;">
+            <button class="btn-icon" onclick="closeModals()" style="position: absolute; top: 15px; right: 15px; background: rgba(0,0,0,0.05); border: 1px solid rgba(0,0,0,0.08); border-radius: 50%; color: var(--text-muted); width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; padding: 0;">
+                <i class="ri-close-line" style="font-size: 1.2rem;"></i>
+            </button>
+            <div id="attendanceDetailContent"></div>
+            <button class="btn btn-primary" onclick="closeModals()" style="width: 100%; margin-top: 20px; padding: 12px; border-radius: 10px; justify-content: center;">
+                <i class="ri-check-line"></i> Tutup
+            </button>
+        </div>
+    </div>
+
     <div id="offlineOverlay" class="hidden" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(15,23,42,0.98); z-index:50000; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding: 20px;">
         <!-- Tampilan Utama Offline -->
         <div id="offlineMainContent" class="glass-card" style="background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(255,255,255,0.08); max-width: 420px; width: 100%; padding: 40px 30px; border-radius: var(--radius-xl); box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5); text-align: center; color: white;">

@@ -245,18 +245,42 @@ async function loadHistory() {
     bIn.innerHTML = '<tr><td colspan="4">Memuat...</td></tr>'; bOut.innerHTML = '<tr><td colspan="4">Memuat...</td></tr>';
     const { data } = await supabaseClient.from('attendance_logs').select('*, employees(full_name)').order('check_in_time', { ascending: false }).limit(100);
     bIn.innerHTML = ''; bOut.innerHTML = '';
+    window.activeLogs = window.activeLogs || {};
     data?.forEach(log => {
         const time = new Date(log.check_in_time).toLocaleString('id-ID');
         const name = log.employees?.full_name || 'N/A';
         const action = `<button class="btn-icon btn-delete" onclick="deleteLog('${log.id}')"><i class="ri-delete-bin-line"></i></button>`;
         
+        window.activeLogs[log.id] = log;
+        
         if (log.type === 'in' || log.type === 'piket_in' || (log.type === 'manual' && log.status !== 'Tugas Luar')) {
             const isPiket = log.type === 'piket_in';
-            const badgeStyle = isPiket ? 'style="background: rgba(217, 119, 6, 0.1); color: var(--warning); border: 1px solid rgba(217, 119, 6, 0.15);"' : '';
-            bIn.innerHTML += `<tr><td><strong>${name}</strong></td><td>${time}</td><td><span class="badge" ${badgeStyle}>${log.status}</span></td><td>${action}</td></tr>`;
+            let badgeStyle = '';
+            if (isPiket) {
+                badgeStyle = 'style="background: rgba(217, 119, 6, 0.1); color: var(--warning); border: 1px solid rgba(217, 119, 6, 0.15); cursor: pointer;"';
+            } else if (log.status === 'Sakit') {
+                badgeStyle = 'style="background: rgba(220, 38, 38, 0.1); color: var(--danger); border: 1px solid rgba(220, 38, 38, 0.15); cursor: pointer;"';
+            } else if (log.status === 'Ijin') {
+                badgeStyle = 'style="background: rgba(217, 119, 6, 0.1); color: var(--warning); border: 1px solid rgba(217, 119, 6, 0.15); cursor: pointer;"';
+            } else if (log.status === 'Late' || log.status === 'Terlambat') {
+                badgeStyle = 'style="background: rgba(220, 38, 38, 0.1); color: var(--danger); border: 1px solid rgba(220, 38, 38, 0.15); cursor: pointer;"';
+            } else if (log.status === 'Early Bird') {
+                badgeStyle = 'style="background: rgba(5, 150, 105, 0.1); color: var(--success); border: 1px solid rgba(5, 150, 105, 0.15); cursor: pointer;"';
+            } else {
+                badgeStyle = 'style="background: rgba(79, 70, 229, 0.1); color: var(--primary); border: 1px solid rgba(79, 70, 229, 0.15); cursor: pointer;"';
+            }
+            bIn.innerHTML += `<tr><td><strong>${name}</strong></td><td>${time}</td><td><span class="badge clickable-badge" ${badgeStyle} onclick="showHistoryDetail('${log.id}')" title="Klik untuk detail"><i class="ri-information-line"></i> ${log.status}</span></td><td>${action}</td></tr>`;
         } 
         if (log.type === 'out' || log.type === 'piket_out' || (log.type === 'manual' && log.status === 'Tugas Luar')) {
-            const noteText = log.type === 'piket_out' ? '<span style="color: var(--warning); font-weight:600;"><i class="ri-shield-flash-line"></i> Piket Selesai</span>' : (log.notes || '-');
+            let noteText = '-';
+            if (log.type === 'piket_out') {
+                noteText = '<span style="color: var(--warning); font-weight:600;"><i class="ri-shield-flash-line"></i> Piket Selesai</span>';
+            } else if (log.type === 'manual' && log.status === 'Tugas Luar') {
+                const infoBadgeStyle = 'style="background: rgba(2, 132, 199, 0.1); color: var(--info); border: 1px solid rgba(2, 132, 199, 0.15); cursor: pointer;"';
+                noteText = `<span class="badge clickable-badge" ${infoBadgeStyle} onclick="showHistoryDetail('${log.id}')" title="Klik untuk detail"><i class="ri-information-line"></i> Tugas Luar</span>`;
+            } else {
+                noteText = log.notes || '-';
+            }
             bOut.innerHTML += `<tr><td><strong>${name}</strong></td><td>${time}</td><td>${noteText}</td><td>${action}</td></tr>`;
         }
     });
@@ -667,6 +691,7 @@ async function loadReport() {
     const { data, error } = await q.order('check_in_time', { ascending: true });
     if (error) return body.innerHTML = `<tr><td colspan="8">Error: ${error.message}</td></tr>`;
     const grouped = {};
+    window.activeLogs = window.activeLogs || {};
     data?.forEach(log => {
         const isPiketLog = log.type === 'piket_in' || log.type === 'piket_out';
         const date = new Date(log.check_in_time).toLocaleDateString('en-CA');
@@ -683,22 +708,66 @@ async function loadReport() {
                 reward: 0, 
                 penalty: 0, 
                 isComplete: false,
-                isPiket: isPiketLog
+                isPiket: isPiketLog,
+                logId: log.id
             };
+            window.activeLogs[log.id] = log;
         }
         const time = new Date(log.check_in_time).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
-        if (log.type === 'in') { grouped[key].in = time; grouped[key].late = log.late_duration_minutes || 0; grouped[key].status = log.status; grouped[key].reward = log.reward_amount || 0; grouped[key].penalty = log.penalty_amount || 0; }
+        if (log.type === 'in') { 
+            grouped[key].in = time; 
+            grouped[key].late = log.late_duration_minutes || 0; 
+            grouped[key].status = log.status; 
+            grouped[key].reward = log.reward_amount || 0; 
+            grouped[key].penalty = log.penalty_amount || 0; 
+            grouped[key].logId = log.id;
+            window.activeLogs[log.id] = log;
+        }
         else if (log.type === 'out') { grouped[key].out = time; grouped[key].isComplete = true; }
-        else if (log.type === 'manual') { grouped[key].status = log.status; grouped[key].in = log.status; grouped[key].isComplete = true; }
-        else if (log.type === 'piket_in') { grouped[key].in = time; grouped[key].late = log.late_duration_minutes || 0; grouped[key].status = log.status; }
+        else if (log.type === 'manual') { 
+            grouped[key].status = log.status; 
+            grouped[key].in = log.status; 
+            grouped[key].isComplete = true; 
+            grouped[key].logId = log.id;
+            window.activeLogs[log.id] = log;
+        }
+        else if (log.type === 'piket_in') { 
+            grouped[key].in = time; 
+            grouped[key].late = log.late_duration_minutes || 0; 
+            grouped[key].status = log.status; 
+            grouped[key].logId = log.id;
+            window.activeLogs[log.id] = log;
+        }
         else if (log.type === 'piket_out') { grouped[key].out = time; grouped[key].isComplete = true; }
     });
     const rows = Object.values(grouped).filter(r => r.isComplete).reverse();
     body.innerHTML = rows.length === 0 ? '<tr><td colspan="8" style="text-align:center; color:var(--text-light); padding:30px;">Laporan muncul setelah Scan Pulang.</td></tr>' : '';
     rows.forEach(r => {
-        const badgeStyle = r.isPiket ? 'style="background: rgba(217, 119, 6, 0.1); color: var(--warning); border: 1px solid rgba(217, 119, 6, 0.15);"' : '';
+        let badgeStyle = r.isPiket ? 'style="background: rgba(217, 119, 6, 0.1); color: var(--warning); border: 1px solid rgba(217, 119, 6, 0.15); cursor: pointer;"' : '';
+        if (!r.isPiket) {
+            if (r.status === 'Sakit') {
+                badgeStyle = 'style="background: rgba(220, 38, 38, 0.1); color: var(--danger); border: 1px solid rgba(220, 38, 38, 0.15); cursor: pointer;"';
+            } else if (r.status === 'Ijin') {
+                badgeStyle = 'style="background: rgba(217, 119, 6, 0.1); color: var(--warning); border: 1px solid rgba(217, 119, 6, 0.15); cursor: pointer;"';
+            } else if (r.status === 'Tugas Luar') {
+                badgeStyle = 'style="background: rgba(2, 132, 199, 0.1); color: var(--info); border: 1px solid rgba(2, 132, 199, 0.15); cursor: pointer;"';
+            } else if (r.status === 'Late' || r.status === 'Terlambat') {
+                badgeStyle = 'style="background: rgba(220, 38, 38, 0.1); color: var(--danger); border: 1px solid rgba(220, 38, 38, 0.15); cursor: pointer;"';
+            } else if (r.status === 'Early Bird') {
+                badgeStyle = 'style="background: rgba(5, 150, 105, 0.1); color: var(--success); border: 1px solid rgba(5, 150, 105, 0.15); cursor: pointer;"';
+            } else {
+                badgeStyle = 'style="background: rgba(79, 70, 229, 0.1); color: var(--primary); border: 1px solid rgba(79, 70, 229, 0.15); cursor: pointer;"';
+            }
+        } else {
+            // Piket statuses
+            if (r.status === 'Piket Terlambat') {
+                badgeStyle = 'style="background: rgba(220, 38, 38, 0.1); color: var(--danger); border: 1px solid rgba(220, 38, 38, 0.15); cursor: pointer;"';
+            } else {
+                badgeStyle = 'style="background: rgba(217, 119, 6, 0.1); color: var(--warning); border: 1px solid rgba(217, 119, 6, 0.15); cursor: pointer;"';
+            }
+        }
         const nameText = r.isPiket ? `${r.name} <span class="badge" style="background: rgba(217,119,6,0.1); color: var(--warning); font-size:0.65rem; padding: 2px 6px; margin-left: 6px;">Piket</span>` : r.name;
-        body.innerHTML += `<tr><td><strong style="color:var(--text-main);">${nameText}</strong></td><td>${r.date}</td><td>${r.in}</td><td>${r.out}</td><td>${r.late > 0 ? `${r.late} Menit` : '-'}</td><td><span class="badge" ${badgeStyle}>${r.status}</span></td><td style="color:var(--success); font-weight:600;">Rp ${r.reward.toLocaleString()}</td><td style="color:var(--danger); font-weight:600;">Rp ${r.penalty.toLocaleString()}</td></tr>`;
+        body.innerHTML += `<tr><td><strong style="color:var(--text-main);">${nameText}</strong></td><td>${r.date}</td><td>${r.in}</td><td>${r.out}</td><td>${r.late > 0 ? `${r.late} Menit` : '-'}</td><td><span class="badge clickable-badge" ${badgeStyle} onclick="showHistoryDetail('${r.logId}')" title="Klik untuk detail"><i class="ri-information-line"></i> ${r.status}</span></td><td style="color:var(--success); font-weight:600;">Rp ${r.reward.toLocaleString()}</td><td style="color:var(--danger); font-weight:600;">Rp ${r.penalty.toLocaleString()}</td></tr>`;
     });
     updateReportStats(rows.length, rows.filter(r => r.status==='On-Time'||r.status==='Early Bird'||r.status==='Piket Tepat Waktu').length, rows.filter(r => r.status==='Late'||r.status==='Piket Terlambat').length, rows.reduce((s, r)=> s+r.reward, 0), rows.reduce((s, r)=> s+r.penalty, 0));
 }
@@ -909,4 +978,180 @@ window.confirmEarlyOut = async function() {
     if (!r || p !== CONFIG.adminPassword) return alert("Gagal!");
     const { empId, employee, type, now } = window.pendingAttendanceData;
     await saveAttendance(empId, employee, type, now, r); closeModals();
+};
+
+window.showHistoryDetail = function(logId) {
+    if (!window.activeLogs) window.activeLogs = {};
+    const log = window.activeLogs[logId];
+    if (!log) {
+        alert("Detail logs tidak ditemukan.");
+        return;
+    }
+
+    const name = log.employees?.full_name || 'Staf';
+    const date = new Date(log.check_in_time);
+    const dateStr = date.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    const timeStr = date.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+    let title = "Detail Kehadiran";
+    let icon = "ri-information-line";
+    let iconBg = "var(--primary-light)";
+    let iconColor = "var(--primary)";
+    let detailsHtml = "";
+
+    const isManual = log.type === 'manual';
+    const isPiket = log.type?.startsWith('piket');
+
+    if (isManual) {
+        title = "Detail Kehadiran Manual";
+        iconBg = "rgba(79, 70, 229, 0.1)";
+        iconColor = "var(--primary)";
+        icon = "ri-edit-box-line";
+        
+        let statusBadgeColor = "var(--primary)";
+        let statusBadgeBg = "var(--primary-light)";
+        if (log.status === "Sakit") {
+            statusBadgeColor = "var(--danger)";
+            statusBadgeBg = "var(--danger-light)";
+            icon = "ri-heart-pulse-line";
+            iconBg = "var(--danger-light)";
+            iconColor = "var(--danger)";
+        } else if (log.status === "Ijin") {
+            statusBadgeColor = "var(--warning)";
+            statusBadgeBg = "var(--warning-light)";
+            icon = "ri-chat-history-line";
+            iconBg = "var(--warning-light)";
+            iconColor = "var(--warning)";
+        } else if (log.status === "Tugas Luar") {
+            statusBadgeColor = "var(--info)";
+            statusBadgeBg = "var(--info-light)";
+            icon = "ri-road-map-line";
+            iconBg = "var(--info-light)";
+            iconColor = "var(--info)";
+        }
+
+        detailsHtml = `
+            <div style="width: 64px; height: 64px; border-radius: 16px; background: ${iconBg}; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px;">
+                <i class="${icon}" style="font-size: 1.8rem; color: ${iconColor};"></i>
+            </div>
+            <h3 style="font-size: 1.25rem; font-weight: 700; color: var(--text-main); margin: 0;">${title}</h3>
+            <p style="color: var(--text-secondary); font-size: 0.95rem; margin: 8px 0 0;">Staf: <strong style="color: var(--text-main);">${name}</strong></p>
+            <p style="color: var(--text-muted); font-size: 0.85rem; margin: 4px 0 16px;">Tanggal: <strong>${dateStr}</strong></p>
+            
+            <div style="background: var(--bg-input); border: 1px solid var(--border-color); border-radius: 12px; padding: 16px; text-align: left; margin-top: 10px;">
+                <div class="logic-row" style="border-bottom: 1px solid var(--border-light); padding-bottom: 8px; margin-bottom: 8px;">
+                    <span style="font-weight: 600; color: var(--text-muted);">Status Kehadiran</span>
+                    <span class="badge" style="background: ${statusBadgeBg}; color: ${statusBadgeColor}; font-weight: 700; border: 1px solid rgba(0,0,0,0.05);">${log.status}</span>
+                </div>
+                <div class="logic-row" style="border-bottom: 1px solid var(--border-light); padding-bottom: 8px; margin-bottom: 8px;">
+                    <span style="font-weight: 600; color: var(--text-muted);">Metode Input</span>
+                    <span style="color: var(--text-secondary); font-weight: 500;"><i class="ri-user-settings-line"></i> Manual oleh Admin</span>
+                </div>
+                <div style="margin-top: 10px;">
+                    <span style="font-weight: 600; color: var(--text-muted); display: block; font-size: 0.8rem; margin-bottom: 6px;">Alasan / Catatan</span>
+                    <div style="background: #ffffff; border-left: 4px solid ${statusBadgeColor}; padding: 10px 12px; border-radius: 4px; font-style: italic; color: var(--text-secondary); font-size: 0.9rem; line-height: 1.4; word-break: break-word;">
+                        "${log.notes || 'Tidak ada alasan/catatan yang dicantumkan.'}"
+                    </div>
+                </div>
+            </div>
+        `;
+    } else {
+        // Biometric / Real Attendance
+        title = isPiket ? "Detail Kehadiran Piket" : "Detail Kehadiran Biometrik";
+        
+        let statusBadgeColor = "var(--success)";
+        let statusBadgeBg = "var(--success-light)";
+        icon = "ri-checkbox-circle-line";
+        iconBg = "var(--success-light)";
+        iconColor = "var(--success)";
+
+        if (log.status === "Late" || log.status === "Terlambat" || log.status === "Piket Terlambat") {
+            statusBadgeColor = "var(--danger)";
+            statusBadgeBg = "var(--danger-light)";
+            icon = "ri-error-warning-line";
+            iconBg = "var(--danger-light)";
+            iconColor = "var(--danger)";
+        } else if (log.status === "Early Bird") {
+            statusBadgeColor = "var(--success)";
+            statusBadgeBg = "var(--success-light)";
+            icon = "ri-copper-coin-line";
+            iconBg = "var(--success-light)";
+            iconColor = "var(--success)";
+        } else if (log.status === "On-Time" || log.status === "Piket Tepat Waktu") {
+            statusBadgeColor = "var(--primary)";
+            statusBadgeBg = "var(--primary-light)";
+            icon = "ri-checkbox-circle-line";
+            iconBg = "var(--primary-light)";
+            iconColor = "var(--primary)";
+        }
+
+        let financialDetailHtml = "";
+        if (log.reward_amount > 0) {
+            financialDetailHtml = `
+                <div class="logic-row" style="border-bottom: 1px solid var(--border-light); padding-bottom: 8px; margin-bottom: 8px;">
+                    <span style="font-weight: 600; color: var(--text-muted);">Insentif (Reward)</span>
+                    <span style="color: var(--success); font-weight: 700;">+Rp ${log.reward_amount.toLocaleString()}</span>
+                </div>
+            `;
+        } else if (log.penalty_amount > 0) {
+            financialDetailHtml = `
+                <div class="logic-row" style="border-bottom: 1px solid var(--border-light); padding-bottom: 8px; margin-bottom: 8px;">
+                    <span style="font-weight: 600; color: var(--text-muted);">Denda Terlambat</span>
+                    <span style="color: var(--danger); font-weight: 700;">-Rp ${log.penalty_amount.toLocaleString()}</span>
+                </div>
+            `;
+        }
+
+        let lateDetailHtml = "";
+        if (log.late_duration_minutes > 0) {
+            lateDetailHtml = `
+                <div class="logic-row" style="border-bottom: 1px solid var(--border-light); padding-bottom: 8px; margin-bottom: 8px;">
+                    <span style="font-weight: 600; color: var(--text-muted);">Durasi Terlambat</span>
+                    <span style="color: var(--danger); font-weight: 600;">${log.late_duration_minutes} Menit</span>
+                </div>
+            `;
+        }
+
+        let reasonHtml = "";
+        if (log.notes && log.notes !== "Absensi Piket") {
+            reasonHtml = `
+                <div style="margin-top: 10px;">
+                    <span style="font-weight: 600; color: var(--text-muted); display: block; font-size: 0.8rem; margin-bottom: 6px;">Catatan (Persetujuan Admin)</span>
+                    <div style="background: #ffffff; border-left: 4px solid var(--primary); padding: 10px 12px; border-radius: 4px; font-style: italic; color: var(--text-secondary); font-size: 0.9rem; line-height: 1.4; word-break: break-word;">
+                        "${log.notes}"
+                    </div>
+                </div>
+            `;
+        }
+
+        detailsHtml = `
+            <div style="width: 64px; height: 64px; border-radius: 16px; background: ${iconBg}; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px;">
+                <i class="${icon}" style="font-size: 1.8rem; color: ${iconColor};"></i>
+            </div>
+            <h3 style="font-size: 1.25rem; font-weight: 700; color: var(--text-main); margin: 0;">${title}</h3>
+            <p style="color: var(--text-secondary); font-size: 0.95rem; margin: 8px 0 0;">Staf: <strong style="color: var(--text-main);">${name}</strong></p>
+            <p style="color: var(--text-muted); font-size: 0.85rem; margin: 4px 0 16px;">Tanggal: <strong>${dateStr}</strong></p>
+            
+            <div style="background: var(--bg-input); border: 1px solid var(--border-color); border-radius: 12px; padding: 16px; text-align: left; margin-top: 10px;">
+                <div class="logic-row" style="border-bottom: 1px solid var(--border-light); padding-bottom: 8px; margin-bottom: 8px;">
+                    <span style="font-weight: 600; color: var(--text-muted);">Waktu Scan</span>
+                    <span style="color: var(--text-main); font-weight: 600;"><i class="ri-time-line"></i> Pukul ${timeStr}</span>
+                </div>
+                <div class="logic-row" style="border-bottom: 1px solid var(--border-light); padding-bottom: 8px; margin-bottom: 8px;">
+                    <span style="font-weight: 600; color: var(--text-muted);">Status</span>
+                    <span class="badge" style="background: ${statusBadgeBg}; color: ${statusBadgeColor}; font-weight: 700; border: 1px solid rgba(0,0,0,0.05);">${log.status}</span>
+                </div>
+                <div class="logic-row" style="border-bottom: 1px solid var(--border-light); padding-bottom: 8px; margin-bottom: 8px;">
+                    <span style="font-weight: 600; color: var(--text-muted);">Metode Verifikasi</span>
+                    <span style="color: var(--primary); font-weight: 600;"><i class="ri-scan-2-line"></i> Biometrik Wajah</span>
+                </div>
+                ${lateDetailHtml}
+                ${financialDetailHtml}
+                ${reasonHtml}
+            </div>
+        `;
+    }
+
+    document.getElementById('attendanceDetailContent').innerHTML = detailsHtml;
+    document.getElementById('attendanceDetailModal').classList.remove('hidden');
 };

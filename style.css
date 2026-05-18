@@ -1030,3 +1030,25 @@ textarea.form-input {
     20%, 60% { transform: translateX(-6px); }
     40%, 80% { transform: translateX(6px); }
 }
+
+/* ============ CLICKABLE BADGES ============ */
+.clickable-badge {
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    border: 1px solid transparent;
+}
+
+.clickable-badge:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.08), 0 2px 4px -2px rgba(79, 70, 229, 0.04);
+    filter: brightness(0.95);
+    border-color: rgba(79, 70, 229, 0.3) !important;
+}
+
+.clickable-badge i {
+    font-size: 0.8rem;
+    opacity: 0.8;
+}
