@@ -531,6 +531,7 @@ window.checkPiketStatus = async function() {
     
     // Default: Reset dan disabled
     btnIn.disabled = true; btnOut.disabled = true;
+    btnIn.removeAttribute('title'); btnOut.removeAttribute('title');
     
     if (!empId) return; // Jika belum pilih nama, biarkan disabled
     
@@ -548,12 +549,29 @@ window.checkPiketStatus = async function() {
     const hasIn = logs?.some(l => l.type === 'piket_in');
     const hasOut = logs?.some(l => l.type === 'piket_out');
 
+    const now = new Date();
+    const piketStart = parseTime(CONFIG.piketStartTime);
+    const earliestPiketIn = new Date(piketStart.getTime() - (30 * 60000));
+    const piketEnd = parseTime(CONFIG.piketEndTime);
+
     if (!hasIn) {
-        btnIn.disabled = false;
+        if (now < earliestPiketIn) {
+            btnIn.disabled = true;
+            const timeStr = earliestPiketIn.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+            btnIn.title = `Absen masuk piket baru bisa dilakukan mulai pukul ${timeStr}`;
+        } else {
+            btnIn.disabled = false;
+        }
         btnOut.disabled = true;
     } else if (hasIn && !hasOut) {
         btnIn.disabled = true;
-        btnOut.disabled = false;
+        if (now < piketEnd) {
+            btnOut.disabled = true;
+            const timeStr = piketEnd.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+            btnOut.title = `Absen pulang piket baru bisa dilakukan mulai pukul ${timeStr}`;
+        } else {
+            btnOut.disabled = false;
+        }
     } else if (hasIn && hasOut) {
         btnIn.disabled = true;
         btnOut.disabled = true;
@@ -562,6 +580,27 @@ window.checkPiketStatus = async function() {
 
 window.handlePiketAttendance = async function(type) {
     const empId = piketEmployeeSelect.value; if (!empId) return alert("Pilih nama!");
+    
+    // Verifikasi Pembatasan Waktu Piket
+    const now = new Date();
+    if (type === 'in') {
+        const piketStart = parseTime(CONFIG.piketStartTime);
+        const earliestPiketIn = new Date(piketStart.getTime() - (30 * 60000));
+        
+        if (now < earliestPiketIn) {
+            const timeFormatted = earliestPiketIn.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+            alert(`Absen masuk piket baru bisa dilakukan paling cepat 30 menit sebelum jam piket dimulai (Mulai Pukul ${timeFormatted}).`);
+            return;
+        }
+    } else if (type === 'out') {
+        const piketEnd = parseTime(CONFIG.piketEndTime);
+        if (now < piketEnd) {
+            const timeFormatted = piketEnd.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+            alert(`Absen pulang piket hanya bisa dilakukan sesuai jam piket selesai yang ditetapkan (Mulai Pukul ${timeFormatted}).`);
+            return;
+        }
+    }
+
     const btnIn = document.getElementById('btnPiketMasuk');
     const btnOut = document.getElementById('btnPiketPulang');
     const clickedBtn = type === 'in' ? btnIn : btnOut;
