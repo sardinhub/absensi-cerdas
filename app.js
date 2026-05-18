@@ -417,30 +417,55 @@ window.handleAttendance = async function(type) {
 
 async function saveAttendance(empId, employee, type, now, reason = "") {
     const sched = getSchedule(now.getDay()); let status = "On-Time", reward = 0, penalty = 0, lateMins = 0;
+    
+    // Cek apakah staff piket
+    const isPiketStaff = (employee.position && employee.position.toLowerCase().includes('piket')) || 
+                         (employee.department && employee.department.toLowerCase().includes('piket'));
+
     if (type === 'in' && sched) {
-        const workStart = parseTime(sched.in);
-        if (now <= new Date(workStart.getTime() - (CONFIG.earlyBirdBuffer * 60000))) { status = "Early Bird"; reward = CONFIG.earlyBirdReward; }
-        else if (now > workStart) {
+        const originalWorkStart = parseTime(sched.in);
+        let workStartForLate = originalWorkStart;
+        if (isPiketStaff) {
+            workStartForLate = new Date(originalWorkStart.getTime() + (30 * 60000));
+            console.log(`[Piket Tolerance] Staf Piket ${employee.full_name} mendapat toleransi 30 menit. Batas terlambat: ${workStartForLate.toLocaleTimeString()}`);
+        }
+
+        if (now <= new Date(originalWorkStart.getTime() - (CONFIG.earlyBirdBuffer * 60000))) { 
+            status = "Early Bird"; 
+            reward = CONFIG.earlyBirdReward; 
+        } else if (now > workStartForLate) {
             status = "Late";
-            lateMins = Math.floor((now - workStart) / 60000);
+            lateMins = Math.floor((now - workStartForLate) / 60000);
             const rawPenalty = lateMins * CONFIG.latePenaltyPerMinute;
             const maxCap = CONFIG.maxDailyPenalty || MAX_PENALTY_FALLBACK;
             penalty = Math.min(rawPenalty, maxCap);
             console.log(`[Denda] ${lateMins} menit × Rp${CONFIG.latePenaltyPerMinute} = Rp${rawPenalty} → Cap Rp${maxCap} → Final: Rp${penalty}`);
         }
     }
-    await supabaseClient.from('attendance_logs').insert([{ employee_id: empId, check_in_time: now.toISOString(), status, type, notes: reason, reward_amount: reward, penalty_amount: penalty, late_duration_minutes: lateMins }]);
+    
+    await supabaseClient.from('attendance_logs').insert([{ 
+        employee_id: empId, 
+        check_in_time: now.toISOString(), 
+        status, 
+        type, 
+        notes: reason, 
+        reward_amount: reward, 
+        penalty_amount: penalty, 
+        late_duration_minutes: lateMins 
+    }]);
+    
     document.getElementById('resultBox').classList.remove('hidden');
     document.getElementById('resultName').textContent = employee.full_name;
     document.getElementById('resultTime').textContent = now.toLocaleTimeString();
     document.getElementById('resultBadge').textContent = status;
-    showAttendancePopup({ name: employee.full_name, time: now, type, status, lateMins, penalty, reward });
+    
+    showAttendancePopup({ name: employee.full_name, time: now, type, status, lateMins, penalty, reward, isPiketStaff });
     
     // Update status tombol
     checkAttendanceStatus();
 }
 
-function showAttendancePopup({ name, time, type, status, lateMins, penalty, reward }) {
+function showAttendancePopup({ name, time, type, status, lateMins, penalty, reward, isPiketStaff }) {
     const timeStr = time.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
     const isLate = status === 'Late';
     const isEarlyBird = status === 'Early Bird';
@@ -457,12 +482,19 @@ function showAttendancePopup({ name, time, type, status, lateMins, penalty, rewa
                   <p style="color: var(--text-muted); font-size: 0.85rem; margin: 4px 0 16px;">Pukul <strong>${timeStr}</strong></p>`;
 
         if (isLate) {
-            detail += `<div style="background: var(--danger-light); border: 1px solid rgba(220,38,38,0.15); border-radius: 10px; padding: 14px; text-align: left;">
+            detail += `<div style="background: var(--danger-light); border: 1px solid rgba(220,38,38,0.15); border-radius: 10px; padding: 14px; text-align: left; margin-bottom: 10px;">
                 <p style="color: var(--danger); font-weight: 600; font-size: 0.85rem; margin-bottom: 0;"><i class="ri-time-line"></i> Anda terlambat ${lateMins} menit</p>
             </div>`;
         } else {
-            detail += `<div style="background: var(--success-light); border: 1px solid rgba(5,150,105,0.15); border-radius: 10px; padding: 14px; text-align: left;">
+            detail += `<div style="background: var(--success-light); border: 1px solid rgba(5,150,105,0.15); border-radius: 10px; padding: 14px; text-align: left; margin-bottom: 10px;">
                 <p style="color: var(--success); font-weight: 600; font-size: 0.85rem; margin-bottom: 0;"><i class="ri-checkbox-circle-line"></i> Anda datang tepat waktu${isEarlyBird ? ' 🎉' : ''}</p>
+            </div>`;
+        }
+
+        if (isPiketStaff) {
+            detail += `<div style="background: var(--primary-light); border: 1px solid rgba(79, 70, 229, 0.15); border-radius: 10px; padding: 12px; text-align: left; margin-top: 10px; display: flex; align-items: center; gap: 8px;">
+                <i class="ri-time-line" style="color: var(--primary); font-size: 1.1rem;"></i>
+                <p style="color: var(--primary); font-weight: 600; font-size: 0.8rem; margin: 0; line-height: 1.4;">💡 Mendapat Toleransi Masuk 30 Menit (Staf Piket)</p>
             </div>`;
         }
 
@@ -785,7 +817,7 @@ function updateReportStats(total, onTime, late, reward, penalty) {
 
 // --- UTILS ---
 async function loadEmployees() {
-    const { data } = await supabaseClient.from('employees').select('id, full_name, face_embedding');
+    const { data } = await supabaseClient.from('employees').select('id, full_name, position, department, face_embedding');
     allEmployees = data || []; 
     attendanceEmployeeSelect.innerHTML = '<option value="">-- Pilih Nama --</option>';
     if (piketEmployeeSelect) piketEmployeeSelect.innerHTML = '<option value="">-- Pilih Nama --</option>';
@@ -1002,6 +1034,13 @@ window.showHistoryDetail = function(logId) {
     const isManual = log.type === 'manual';
     const isPiket = log.type?.startsWith('piket');
 
+    // Cek toleransi piket lewat pencarian di allEmployees
+    const employee = allEmployees.find(e => e.id === log.employee_id);
+    const isPiketStaff = employee && (
+        (employee.position && employee.position.toLowerCase().includes('piket')) || 
+        (employee.department && employee.department.toLowerCase().includes('piket'))
+    );
+
     if (isManual) {
         title = "Detail Kehadiran Manual";
         iconBg = "rgba(79, 70, 229, 0.1)";
@@ -1124,6 +1163,16 @@ window.showHistoryDetail = function(logId) {
             `;
         }
 
+        let piketToleranceHtml = "";
+        if (isPiketStaff && log.type === 'in') {
+            piketToleranceHtml = `
+                <div class="logic-row" style="border-bottom: 1px solid var(--border-light); padding-bottom: 8px; margin-bottom: 8px; background: rgba(79, 70, 229, 0.05); padding: 6px 10px; border-radius: 6px; margin-top: 4px;">
+                    <span style="font-weight: 600; color: var(--primary);"><i class="ri-time-line"></i> Toleransi Piket</span>
+                    <span style="color: var(--primary); font-weight: 700;">+30 Menit Aktif</span>
+                </div>
+            `;
+        }
+
         detailsHtml = `
             <div style="width: 64px; height: 64px; border-radius: 16px; background: ${iconBg}; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px;">
                 <i class="${icon}" style="font-size: 1.8rem; color: ${iconColor};"></i>
@@ -1137,6 +1186,7 @@ window.showHistoryDetail = function(logId) {
                     <span style="font-weight: 600; color: var(--text-muted);">Waktu Scan</span>
                     <span style="color: var(--text-main); font-weight: 600;"><i class="ri-time-line"></i> Pukul ${timeStr}</span>
                 </div>
+                ${piketToleranceHtml}
                 <div class="logic-row" style="border-bottom: 1px solid var(--border-light); padding-bottom: 8px; margin-bottom: 8px;">
                     <span style="font-weight: 600; color: var(--text-muted);">Status</span>
                     <span class="badge" style="background: ${statusBadgeBg}; color: ${statusBadgeColor}; font-weight: 700; border: 1px solid rgba(0,0,0,0.05);">${log.status}</span>
