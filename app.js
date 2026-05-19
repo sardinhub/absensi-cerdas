@@ -434,16 +434,33 @@ window.handleAttendance = async function(type) {
 async function saveAttendance(empId, employee, type, now, reason = "") {
     const sched = getSchedule(now.getDay()); let status = "On-Time", reward = 0, penalty = 0, lateMins = 0;
     
-    // Cek apakah staff piket
-    const isPiketStaff = (employee.position && employee.position.toLowerCase().includes('piket')) || 
-                         (employee.department && employee.department.toLowerCase().includes('piket'));
+    // Cek apakah staff telah melakukan absen pulang piket (piket_out) dalam 18 jam terakhir
+    let isPiketStaff = false;
+    if (type === 'in') {
+        try {
+            const lookupTime = new Date(now.getTime() - (18 * 60 * 60 * 1000));
+            const { data: recentPiketOut } = await supabaseClient
+                .from('attendance_logs')
+                .select('id')
+                .eq('employee_id', empId)
+                .eq('type', 'piket_out')
+                .gte('check_in_time', lookupTime.toISOString())
+                .limit(1);
+            if (recentPiketOut && recentPiketOut.length > 0) {
+                isPiketStaff = true;
+                console.log(`[Piket Grace] Staf ${employee.full_name} memiliki log piket_out dalam 18 jam terakhir. Diberikan toleransi masuk.`);
+            }
+        } catch (e) {
+            console.error("Gagal mengecek log piket_out:", e);
+        }
+    }
 
     if (type === 'in' && sched) {
         const originalWorkStart = parseTime(sched.in);
         let workStartForLate = originalWorkStart;
         if (isPiketStaff) {
             workStartForLate = new Date(originalWorkStart.getTime() + (30 * 60000));
-            console.log(`[Piket Tolerance] Staf Piket ${employee.full_name} mendapat toleransi 30 menit. Batas terlambat: ${workStartForLate.toLocaleTimeString()}`);
+            console.log(`[Piket Tolerance] Staf Piket ${employee.full_name} mendapat toleransi 30 menit karena piket pulang. Batas terlambat: ${workStartForLate.toLocaleTimeString()}`);
         }
 
         if (now <= new Date(originalWorkStart.getTime() - (CONFIG.earlyBirdBuffer * 60000))) { 
@@ -510,7 +527,7 @@ function showAttendancePopup({ name, time, type, status, lateMins, penalty, rewa
         if (isPiketStaff) {
             detail += `<div style="background: var(--primary-light); border: 1px solid rgba(79, 70, 229, 0.15); border-radius: 10px; padding: 12px; text-align: left; margin-top: 10px; display: flex; align-items: center; gap: 8px;">
                 <i class="ri-time-line" style="color: var(--primary); font-size: 1.1rem;"></i>
-                <p style="color: var(--primary); font-weight: 600; font-size: 0.8rem; margin: 0; line-height: 1.4;">💡 Mendapat Toleransi Masuk 30 Menit (Staf Piket)</p>
+                <p style="color: var(--primary); font-weight: 600; font-size: 0.8rem; margin: 0; line-height: 1.4;">💡 Toleransi Masuk 30 Menit Aktif (Staf Pasca Piket)</p>
             </div>`;
         }
 
@@ -1147,7 +1164,7 @@ window.confirmEarlyOut = async function() {
     closeModals();
 };
 
-window.showHistoryDetail = function(logId) {
+window.showHistoryDetail = async function(logId) {
     if (!window.activeLogs) window.activeLogs = {};
     const log = window.activeLogs[logId];
     if (!log) {
@@ -1169,12 +1186,27 @@ window.showHistoryDetail = function(logId) {
     const isManual = log.type === 'manual';
     const isPiket = log.type?.startsWith('piket');
 
-    // Cek toleransi piket lewat pencarian di allEmployees
-    const employee = allEmployees.find(e => e.id === log.employee_id);
-    const isPiketStaff = employee && (
-        (employee.position && employee.position.toLowerCase().includes('piket')) || 
-        (employee.department && employee.department.toLowerCase().includes('piket'))
-    );
+    // Cek apakah staf mendapat toleransi piket pada log masuk ini (jika ada piket_out dalam 18 jam sebelumnya)
+    let isPiketStaff = false;
+    if (log.type === 'in') {
+        try {
+            const checkInTime = new Date(log.check_in_time);
+            const lookupTime = new Date(checkInTime.getTime() - (18 * 60 * 60 * 1000));
+            const { data: recentPiketOut } = await supabaseClient
+                .from('attendance_logs')
+                .select('id')
+                .eq('employee_id', log.employee_id)
+                .eq('type', 'piket_out')
+                .gte('check_in_time', lookupTime.toISOString())
+                .lte('check_in_time', log.check_in_time)
+                .limit(1);
+            if (recentPiketOut && recentPiketOut.length > 0) {
+                isPiketStaff = true;
+            }
+        } catch (e) {
+            console.error("Gagal memeriksa log piket pulang historis:", e);
+        }
+    }
 
     if (isManual) {
         title = "Detail Kehadiran Manual";
