@@ -556,41 +556,66 @@ window.checkPiketStatus = async function() {
     btnIn.innerHTML = '<span class="btn-spinner" style="width:16px;height:16px;"></span>';
     btnOut.innerHTML = '<span class="btn-spinner" style="width:16px;height:16px;"></span>';
 
-    // Cek status hari ini (apakah sudah ada log piket)
-    const today = new Date(); today.setHours(0,0,0,0);
-    const { data: logs } = await supabaseClient.from('attendance_logs').select('type').eq('employee_id', empId).gte('check_in_time', today.toISOString());
-    
+    // Ambil log piket terakhir dalam 24 jam untuk karyawan ini agar bebas dari masalah pergantian hari (midnight)
+    const { data: latestPiketLogs } = await supabaseClient
+        .from('attendance_logs')
+        .select('type, check_in_time')
+        .eq('employee_id', empId)
+        .in('type', ['piket_in', 'piket_out'])
+        .order('check_in_time', { ascending: false })
+        .limit(1);
+
     btnIn.innerHTML = oldInTxt; btnOut.innerHTML = oldOutTxt;
 
-    const hasIn = logs?.some(l => l.type === 'piket_in');
-    const hasOut = logs?.some(l => l.type === 'piket_out');
+    const latestLog = latestPiketLogs && latestPiketLogs[0];
+    // Staf dianggap sedang piket jika log terakhir adalah piket_in dan usianya kurang dari 24 jam
+    const hasIn = latestLog && latestLog.type === 'piket_in' && (new Date() - new Date(latestLog.check_in_time)) < 24 * 60 * 60 * 1000;
+    const hasOut = !hasIn && latestLog && latestLog.type === 'piket_out' && (new Date() - new Date(latestLog.check_in_time)) < 24 * 60 * 60 * 1000;
 
     const now = new Date();
     const piketStart = parseTime(CONFIG.piketStartTime);
     const earliestPiketIn = new Date(piketStart.getTime() - (30 * 60000));
-    const piketEnd = parseTime(CONFIG.piketEndTime);
 
     if (!hasIn) {
-        if (now < earliestPiketIn) {
+        // Jika sudah absen pulang hari ini (dalam 24 jam terakhir), tidak bisa masuk lagi
+        if (hasOut) {
             btnIn.disabled = true;
-            const timeStr = earliestPiketIn.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
-            btnIn.title = `Absen masuk piket baru bisa dilakukan mulai pukul ${timeStr}`;
-        } else {
-            btnIn.disabled = false;
-        }
-        btnOut.disabled = true;
-    } else if (hasIn && !hasOut) {
-        btnIn.disabled = true;
-        if (now < piketEnd) {
             btnOut.disabled = true;
-            const timeStr = piketEnd.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
-            btnOut.title = `Absen pulang piket baru bisa dilakukan mulai pukul ${timeStr}`;
+            btnIn.title = "Anda sudah menyelesaikan piket hari ini.";
+        } else {
+            if (now < earliestPiketIn) {
+                btnIn.disabled = true;
+                const timeStr = earliestPiketIn.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+                btnIn.title = `Absen masuk piket baru bisa dilakukan mulai pukul ${timeStr}`;
+            } else {
+                btnIn.disabled = false;
+            }
+            btnOut.disabled = true;
+        }
+    } else {
+        // Sedang piket (hasIn = true)
+        btnIn.disabled = true;
+        
+        // Hitung waktu piket selesai secara presisi berdasarkan tanggal log masuk piket
+        const piketInDate = new Date(latestLog.check_in_time);
+        const [startH, startM] = CONFIG.piketStartTime.split(':').map(Number);
+        const [endH, endM] = CONFIG.piketEndTime.split(':').map(Number);
+        
+        let piketEndDate = new Date(piketInDate);
+        piketEndDate.setHours(endH, endM, 0, 0);
+        
+        // Jika shift melewati tengah malam
+        if (endH < startH || (endH === startH && endM < startM)) {
+            piketEndDate.setDate(piketEndDate.getDate() + 1);
+        }
+
+        if (now < piketEndDate) {
+            btnOut.disabled = false; // Aktifkan tombol agar bisa dipencet (bila ingin pulang lebih cepat dengan izin admin)
+            const timeStr = piketEndDate.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+            btnOut.title = `Shift piket selesai pukul ${timeStr}. Pulang lebih cepat memerlukan persetujuan admin.`;
         } else {
             btnOut.disabled = false;
         }
-    } else if (hasIn && hasOut) {
-        btnIn.disabled = true;
-        btnOut.disabled = true;
     }
 };
 
@@ -609,10 +634,33 @@ window.handlePiketAttendance = async function(type) {
             return;
         }
     } else if (type === 'out') {
-        const piketEnd = parseTime(CONFIG.piketEndTime);
-        if (now < piketEnd) {
-            const timeFormatted = piketEnd.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
-            alert(`Absen pulang piket hanya bisa dilakukan sesuai jam piket selesai yang ditetapkan (Mulai Pukul ${timeFormatted}).`);
+        // Ambil log masuk piket terakhir untuk mendapatkan waktu mulai piket
+        const { data: latestIn } = await supabaseClient
+            .from('attendance_logs')
+            .select('check_in_time')
+            .eq('employee_id', empId)
+            .eq('type', 'piket_in')
+            .order('check_in_time', { ascending: false })
+            .limit(1);
+
+        let piketEndDate = parseTime(CONFIG.piketEndTime);
+        if (latestIn && latestIn.length > 0) {
+            const piketInDate = new Date(latestIn[0].check_in_time);
+            const [startH, startM] = CONFIG.piketStartTime.split(':').map(Number);
+            const [endH, endM] = CONFIG.piketEndTime.split(':').map(Number);
+            
+            piketEndDate = new Date(piketInDate);
+            piketEndDate.setHours(endH, endM, 0, 0);
+            
+            if (endH < startH || (endH === startH && endM < startM)) {
+                piketEndDate.setDate(piketEndDate.getDate() + 1);
+            }
+        }
+
+        if (now < piketEndDate) {
+            const emp = allEmployees.find(e => e.id === empId);
+            window.pendingAttendanceData = { empId, employee: emp, type: 'piket_out', now };
+            document.getElementById('earlyOutModal').classList.remove('hidden');
             return;
         }
     }
@@ -668,10 +716,26 @@ window.handlePiketAttendance = async function(type) {
     }
     
     try {
-        const today = new Date(); today.setHours(0,0,0,0);
         const typeStr = type === 'in' ? 'piket_in' : 'piket_out';
-        const { data: ex } = await supabaseClient.from('attendance_logs').select('id').eq('employee_id', empId).eq('type', typeStr).gte('check_in_time', today.toISOString());
-        if (ex?.length > 0) { alert("Sudah absen piket tadi."); return resetButtons(); }
+        
+        // Cek log piket terakhir dalam 24 jam terakhir secara dinamis (bebas dari masalah pergantian hari/midnight)
+        const { data: latestPiketLogs } = await supabaseClient
+            .from('attendance_logs')
+            .select('type, check_in_time')
+            .eq('employee_id', empId)
+            .in('type', ['piket_in', 'piket_out'])
+            .order('check_in_time', { ascending: false })
+            .limit(1);
+
+        const latestLog = latestPiketLogs && latestPiketLogs[0];
+        
+        if (type === 'in') {
+            const hasIn = latestLog && latestLog.type === 'piket_in' && (new Date() - new Date(latestLog.check_in_time)) < 24 * 60 * 60 * 1000;
+            if (hasIn) { alert("Anda sudah absen masuk piket tadi."); return resetButtons(); }
+        } else {
+            const hasOut = latestLog && latestLog.type === 'piket_out' && (new Date() - new Date(latestLog.check_in_time)) < 24 * 60 * 60 * 1000;
+            if (hasOut) { alert("Anda sudah absen pulang piket tadi."); return resetButtons(); }
+        }
         
         const emp = allEmployees.find(e => e.id === empId), api = window.faceapi || faceapi;
         if (!emp.face_embedding) { alert("Staf ini belum memiliki data wajah! Silakan hubungi admin."); return resetButtons(); }
@@ -690,7 +754,7 @@ window.handlePiketAttendance = async function(type) {
     } catch (e) { alert(e.message); resetButtons(); }
 };
 
-async function savePiketAttendance(empId, employee, type, now) {
+async function savePiketAttendance(empId, employee, type, now, reason = "Absensi Piket") {
     let status = "Piket Tepat Waktu", reward = 0, penalty = 0, lateMins = 0;
     if (type === 'piket_in') {
         const piketStart = parseTime(CONFIG.piketStartTime);
@@ -699,10 +763,19 @@ async function savePiketAttendance(empId, employee, type, now) {
             lateMins = Math.floor((now - piketStart) / 60000);
         }
     } else {
-        status = "Piket Selesai";
+        status = reason !== "Absensi Piket" ? "Piket Pulang Cepat" : "Piket Selesai";
     }
     
-    await supabaseClient.from('attendance_logs').insert([{ employee_id: empId, check_in_time: now.toISOString(), status, type, notes: "Absensi Piket", reward_amount: reward, penalty_amount: penalty, late_duration_minutes: lateMins }]);
+    await supabaseClient.from('attendance_logs').insert([{ 
+        employee_id: empId, 
+        check_in_time: now.toISOString(), 
+        status, 
+        type, 
+        notes: reason, 
+        reward_amount: reward, 
+        penalty_amount: penalty, 
+        late_duration_minutes: lateMins 
+    }]);
     
     document.getElementById('resultBoxPiket').classList.remove('hidden');
     document.getElementById('resultNamePiket').textContent = employee.full_name;
@@ -1066,7 +1139,12 @@ window.confirmEarlyOut = async function() {
     const r = document.getElementById('earlyReason').value, p = document.getElementById('adminApprovePass').value;
     if (!r || p !== CONFIG.adminPassword) return alert("Gagal!");
     const { empId, employee, type, now } = window.pendingAttendanceData;
-    await saveAttendance(empId, employee, type, now, r); closeModals();
+    if (type === 'piket_out') {
+        await savePiketAttendance(empId, employee, type, now, r);
+    } else {
+        await saveAttendance(empId, employee, type, now, r);
+    }
+    closeModals();
 };
 
 window.showHistoryDetail = function(logId) {
