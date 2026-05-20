@@ -418,6 +418,51 @@
         </div>
     </div>
 
+    <!-- Modal Edit Kehadiran -->
+    <div id="editLogModal" class="modal hidden">
+        <div class="glass-card" style="width:420px;">
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px;">
+                <div style="width: 36px; height: 36px; border-radius: 8px; background: var(--primary-light); display: flex; align-items: center; justify-content: center; color: var(--primary);"><i class="ri-edit-line"></i></div>
+                <h3 style="margin: 0;">Edit Waktu Kehadiran</h3>
+            </div>
+            <div style="display:grid; gap:14px; margin-bottom: 20px;">
+                <input type="hidden" id="editLogId">
+                <input type="hidden" id="editLogType">
+                <div>
+                    <label class="form-label">Nama Staf</label>
+                    <input type="text" id="editLogEmpName" class="form-input" readonly style="background: rgba(0,0,0,0.03); cursor: not-allowed; font-weight: 600;">
+                </div>
+                <div>
+                    <label class="form-label">Tipe Log</label>
+                    <input type="text" id="editLogTypeText" class="form-input" readonly style="background: rgba(0,0,0,0.03); cursor: not-allowed;">
+                </div>
+                <div>
+                    <label class="form-label">Tanggal & Waktu</label>
+                    <input type="datetime-local" id="editLogTime" class="form-input">
+                </div>
+                <div id="editLogStatusGroup" class="hidden">
+                    <label class="form-label">Status Kehadiran</label>
+                    <select id="editLogStatus" class="form-input">
+                        <option value="Sakit">Sakit</option>
+                        <option value="Ijin">Ijin</option>
+                        <option value="Tugas Luar">Tugas Luar</option>
+                    </select>
+                </div>
+                <div id="editLogAutoCalcAlert" style="background: rgba(79, 70, 229, 0.05); border: 1px solid rgba(79, 70, 229, 0.15); border-radius: 8px; padding: 10px; font-size: 0.75rem; color: var(--primary); line-height: 1.4;">
+                    <i class="ri-information-line"></i> <strong>Informasi:</strong> Status, keterlambatan, denda, dan reward akan dikalkulasi ulang secara otomatis berdasarkan jam kerja yang berlaku pada tanggal tersebut.
+                </div>
+                <div>
+                    <label class="form-label">Catatan Tambahan / Alasan Koreksi</label>
+                    <textarea id="editLogNotes" class="form-input" style="height: 70px;" placeholder="Contoh: Salah scan karena mati lampu, atau Jam server bermasalah"></textarea>
+                </div>
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                <button class="btn btn-secondary" onclick="closeModals()">Batal</button>
+                <button class="btn btn-primary" onclick="saveEditLog()">Simpan Perubahan</button>
+            </div>
+        </div>
+    </div>
+
     <div id="manualAttendanceModal" class="modal hidden">
         <div class="glass-card" style="width:420px;">
             <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px;">

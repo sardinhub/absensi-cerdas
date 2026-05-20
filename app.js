@@ -263,7 +263,7 @@ async function loadHistory(isAutoRefresh = false) {
     data?.forEach(log => {
         const time = new Date(log.check_in_time).toLocaleString('id-ID');
         const name = log.employees?.full_name || 'N/A';
-        const action = `<button class="btn-icon btn-delete" onclick="deleteLog('${log.id}')"><i class="ri-delete-bin-line"></i></button>`;
+        const action = `<button class="btn-icon btn-edit" onclick="openEditLog('${log.id}')" style="margin-right: 6px;"><i class="ri-edit-line"></i></button><button class="btn-icon btn-delete" onclick="deleteLog('${log.id}')"><i class="ri-delete-bin-line"></i></button>`;
         
         window.activeLogs[log.id] = log;
         
@@ -314,7 +314,198 @@ window.saveManualAttendance = async () => {
     if (!error) { alert("Sukses!"); closeModals(); loadHistory(false); }
 };
 
+window.openEditLog = async function(logId) {
+    if (!window.activeLogs) window.activeLogs = {};
+    let log = window.activeLogs[logId];
+    
+    if (!log) {
+        try {
+            const { data, error } = await supabaseClient
+                .from('attendance_logs')
+                .select('*, employees(full_name)')
+                .eq('id', logId)
+                .single();
+            if (error || !data) throw new Error("Log tidak ditemukan");
+            log = data;
+            window.activeLogs[logId] = log;
+        } catch (e) {
+            alert("Gagal mengambil data log: " + e.message);
+            return;
+        }
+    }
 
+    document.getElementById('editLogId').value = log.id;
+    document.getElementById('editLogType').value = log.type;
+    document.getElementById('editLogEmpName').value = log.employees?.full_name || 'Staf';
+    
+    const typeNames = {
+        'in': 'Masuk Kantor (Biometrik)',
+        'out': 'Pulang Kantor (Biometrik)',
+        'piket_in': 'Masuk Piket (Biometrik)',
+        'piket_out': 'Pulang Piket (Biometrik)',
+        'manual': 'Manual (Izin/Sakit/Tugas Luar)'
+    };
+    document.getElementById('editLogTypeText').value = typeNames[log.type] || log.type;
+    
+    const logDate = new Date(log.check_in_time);
+    const year = logDate.getFullYear();
+    const month = String(logDate.getMonth() + 1).padStart(2, '0');
+    const day = String(logDate.getDate()).padStart(2, '0');
+    const hours = String(logDate.getHours()).padStart(2, '0');
+    const minutes = String(logDate.getMinutes()).padStart(2, '0');
+    document.getElementById('editLogTime').value = `${year}-${month}-${day}T${hours}:${minutes}`;
+    
+    document.getElementById('editLogNotes').value = log.notes || '';
+    
+    const statusGroup = document.getElementById('editLogStatusGroup');
+    const statusSelect = document.getElementById('editLogStatus');
+    const autoCalcAlert = document.getElementById('editLogAutoCalcAlert');
+    
+    if (log.type === 'manual') {
+        statusGroup.classList.remove('hidden');
+        statusSelect.value = log.status || 'Sakit';
+        autoCalcAlert.classList.add('hidden');
+    } else {
+        statusGroup.classList.add('hidden');
+        autoCalcAlert.classList.remove('hidden');
+    }
+    
+    document.getElementById('editLogModal').classList.remove('hidden');
+};
+
+window.saveEditLog = async function() {
+    const logId = document.getElementById('editLogId').value;
+    const logType = document.getElementById('editLogType').value;
+    const timeVal = document.getElementById('editLogTime').value;
+    const notesVal = document.getElementById('editLogNotes').value;
+    
+    if (!timeVal) return alert("Pilih tanggal dan waktu!");
+    
+    const newTime = new Date(timeVal);
+    if (isNaN(newTime.getTime())) return alert("Format tanggal/waktu tidak valid!");
+
+    const originalLogs = window.activeLogs || {};
+    const log = originalLogs[logId];
+    if (!log) return alert("Data log asli tidak ditemukan di sistem.");
+
+    const employeeId = log.employee_id;
+    let status = log.status;
+    let reward = log.reward_amount || 0;
+    let penalty = log.penalty_amount || 0;
+    let lateMins = log.late_duration_minutes || 0;
+
+    if (logType === 'in') {
+        const sched = getSchedule(newTime.getDay());
+        if (sched) {
+            let isPiketStaff = false;
+            try {
+                const lookupTime = new Date(newTime.getTime() - (18 * 60 * 60 * 1000));
+                const { data: recentPiketOut } = await supabaseClient
+                    .from('attendance_logs')
+                    .select('id')
+                    .eq('employee_id', employeeId)
+                    .eq('type', 'piket_out')
+                    .gte('check_in_time', lookupTime.toISOString())
+                    .lte('check_in_time', newTime.toISOString())
+                    .limit(1);
+                if (recentPiketOut && recentPiketOut.length > 0) {
+                    isPiketStaff = true;
+                }
+            } catch (e) {
+                console.error("Gagal mengecek log piket_out untuk edit:", e);
+            }
+
+            const originalWorkStart = parseTime(sched.in, newTime);
+            let workStartForLate = originalWorkStart;
+            if (isPiketStaff) {
+                workStartForLate = new Date(originalWorkStart.getTime() + (30 * 60000));
+            }
+
+            status = "On-Time";
+            reward = 0;
+            penalty = 0;
+            lateMins = 0;
+
+            if (newTime <= new Date(originalWorkStart.getTime() - (CONFIG.earlyBirdBuffer * 60000))) {
+                status = "Early Bird";
+                reward = CONFIG.earlyBirdReward;
+            } else if (newTime > workStartForLate) {
+                status = "Late";
+                lateMins = Math.floor((newTime - workStartForLate) / 60000);
+                const rawPenalty = lateMins * CONFIG.latePenaltyPerMinute;
+                const maxCap = CONFIG.maxDailyPenalty || MAX_PENALTY_FALLBACK;
+                penalty = Math.min(rawPenalty, maxCap);
+            }
+        }
+    } else if (logType === 'piket_in') {
+        const piketStart = parseTime(CONFIG.piketStartTime, newTime);
+        status = "Piket Tepat Waktu";
+        lateMins = 0;
+        reward = 0;
+        penalty = 0;
+        if (newTime > piketStart) {
+            status = "Piket Terlambat";
+            lateMins = Math.floor((newTime - piketStart) / 60000);
+        }
+    } else if (logType === 'piket_out') {
+        status = "Piket Selesai";
+        try {
+            const { data: latestIn } = await supabaseClient
+                .from('attendance_logs')
+                .select('check_in_time')
+                .eq('employee_id', employeeId)
+                .eq('type', 'piket_in')
+                .lt('check_in_time', log.check_in_time)
+                .order('check_in_time', { ascending: false })
+                .limit(1);
+
+            let piketEndDate = parseTime(CONFIG.piketEndTime, newTime);
+            if (latestIn && latestIn.length > 0) {
+                const piketInDate = new Date(latestIn[0].check_in_time);
+                const [startH, startM] = CONFIG.piketStartTime.split(':').map(Number);
+                const [endH, endM] = CONFIG.piketEndTime.split(':').map(Number);
+                
+                piketEndDate = new Date(piketInDate);
+                piketEndDate.setHours(endH, endM, 0, 0);
+                if (endH < startH || (endH === startH && endM < startM)) {
+                    piketEndDate.setDate(piketEndDate.getDate() + 1);
+                }
+            }
+            if (newTime < piketEndDate) {
+                status = "Piket Pulang Cepat";
+            }
+        } catch (e) {
+            console.error("Gagal kalkulasi piket pulang cepat:", e);
+        }
+    } else if (logType === 'manual') {
+        status = document.getElementById('editLogStatus').value;
+    }
+
+    try {
+        const { error } = await supabaseClient
+            .from('attendance_logs')
+            .update({
+                check_in_time: newTime.toISOString(),
+                status,
+                notes: notesVal,
+                reward_amount: reward,
+                penalty_amount: penalty,
+                late_duration_minutes: lateMins
+            })
+            .eq('id', logId);
+
+        if (error) throw error;
+
+        alert("Data Kehadiran Berhasil Diperbarui!");
+        closeModals();
+        
+        loadHistory(false);
+        loadReport(false);
+    } catch (e) {
+        alert("Gagal memperbarui log: " + e.message);
+        console.error(e);
+    }
+};
 
 // --- ATTENDANCE ---
 window.checkAttendanceStatus = async function() {
@@ -975,7 +1166,7 @@ async function loadEmployees() {
         document.getElementById('reportEmployeeFilter').innerHTML += `<option value="${e.id}">${e.full_name}</option>`; 
     });
 }
-function parseTime(t) { const n = new Date(), [h, m, s] = t.split(':'); return new Date(n.getFullYear(), n.getMonth(), n.getDate(), h, m, s || 0); }
+function parseTime(t, baseDate = new Date()) { const n = baseDate, [h, m, s] = t.split(':'); return new Date(n.getFullYear(), n.getMonth(), n.getDate(), h, m, s || 0); }
 
 // Hitung jarak (meter) menggunakan Rumus Haversine
 function calculateDistance(lat1, lon1, lat2, lon2) {
