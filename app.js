@@ -347,11 +347,15 @@ async function loadAdminCheckoutPending() {
             .select('employee_id, type, check_in_time, employees(full_name)')
             .gte('check_in_time', today.toISOString())
             .in('type', ['in', 'out', 'piket_in', 'piket_out']);
-        // Kelompokkan per employee
+        // Kelompokkan per employee — gunakan allEmployees untuk nama (lebih reliable dari join)
         const empMap = {};
         todayLogs?.forEach(log => {
             const eid = log.employee_id;
-            if (!empMap[eid]) empMap[eid] = { id: eid, name: log.employees?.full_name || 'N/A', hasIn: false, hasOut: false, hasPiketIn: false, hasPiketOut: false, checkInTime: null, piketInTime: null };
+            if (!empMap[eid]) {
+                const empData = allEmployees.find(e => e.id === eid);
+                const empName = empData?.full_name || log.employees?.full_name || 'N/A';
+                empMap[eid] = { id: eid, name: empName, hasIn: false, hasOut: false, hasPiketIn: false, hasPiketOut: false, checkInTime: null, piketInTime: null };
+            }
             if (log.type === 'in')        { empMap[eid].hasIn = true; empMap[eid].checkInTime = log.check_in_time; }
             if (log.type === 'out')       empMap[eid].hasOut = true;
             if (log.type === 'piket_in')  { empMap[eid].hasPiketIn = true; empMap[eid].piketInTime = log.check_in_time; }
