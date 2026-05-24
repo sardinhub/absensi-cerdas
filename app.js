@@ -1237,13 +1237,24 @@ window.resetDateFilter = function() {
 };
 
 async function loadReport(isAutoRefresh = false) {
-    const emp = document.getElementById('reportEmployeeFilter')?.value || 'all', per = document.getElementById('reportPeriodFilter')?.value || 'daily', body = document.getElementById('reportTableBody');
+    const emp = document.getElementById('reportEmployeeFilter')?.value || 'all';
+    const per = document.getElementById('reportPeriodFilter')?.value || 'daily';
+    const typeFilter = document.getElementById('reportTypeFilter')?.value || 'all';
+    const body = document.getElementById('reportTableBody');
     if (!body) return;
     if (!isAutoRefresh) {
         body.innerHTML = '<tr><td colspan="8">Memuat...</td></tr>';
     }
     let q = supabaseClient.from('attendance_logs').select('*, employees(full_name)');
     if (emp !== 'all') q = q.eq('employee_id', emp);
+    
+    // Filter by type
+    if (typeFilter === 'kantor') {
+        q = q.in('type', ['in', 'out', 'manual']);
+    } else if (typeFilter === 'piket') {
+        q = q.in('type', ['piket_in', 'piket_out']);
+    }
+    
     const startOfToday = new Date(); startOfToday.setHours(0,0,0,0);
     if (per === 'daily') q = q.gte('check_in_time', startOfToday.toISOString());
     else if (per === 'weekly') { const first = startOfToday.getDate() - startOfToday.getDay(); const startOfWeek = new Date(new Date().setDate(first)); startOfWeek.setHours(0,0,0,0); q = q.gte('check_in_time', startOfWeek.toISOString()); }
@@ -1323,8 +1334,14 @@ async function loadReport(isAutoRefresh = false) {
         else if (log.type === 'piket_out') { grouped[key].out = time; grouped[key].isComplete = true; }
     });
     const rows = Object.values(grouped).filter(r => r.isComplete).reverse();
-    body.innerHTML = rows.length === 0 ? '<tr><td colspan="8" style="text-align:center; color:var(--text-light); padding:30px;">Laporan muncul setelah Scan Pulang.</td></tr>' : '';
+    let trs = '', totalHadir = 0, totalTelat = 0, totalPiket = 0;
+    
     rows.forEach(r => {
+        if (r.isPiket) totalPiket++;
+        else totalHadir++;
+
+        if (r.late > 0) totalTelat++;
+
         let badgeStyle = r.isPiket ? 'style="background: rgba(217, 119, 6, 0.1); color: var(--warning); border: 1px solid rgba(217, 119, 6, 0.15); cursor: pointer;"' : '';
         if (!r.isPiket) {
             if (r.status === 'Sakit') {
@@ -1349,20 +1366,106 @@ async function loadReport(isAutoRefresh = false) {
             }
         }
         const nameText = r.isPiket ? `${r.name} <span class="badge" style="background: rgba(217,119,6,0.1); color: var(--warning); font-size:0.65rem; padding: 2px 6px; margin-left: 6px;">Piket</span>` : r.name;
-        body.innerHTML += `<tr><td><strong style="color:var(--text-main);">${nameText}</strong></td><td>${r.date}</td><td>${r.in}</td><td>${r.out}</td><td>${r.late > 0 ? `${r.late} Menit` : '-'}</td><td><span class="badge clickable-badge" ${badgeStyle} onclick="showHistoryDetail('${r.logId}')" title="Klik untuk detail"><i class="ri-information-line"></i> ${r.status}</span></td><td style="color:var(--success); font-weight:600;">Rp ${r.reward.toLocaleString()}</td><td style="color:var(--danger); font-weight:600;">Rp ${r.penalty.toLocaleString()}</td></tr>`;
+        trs += `<tr><td><strong style="color:var(--text-main);">${nameText}</strong></td><td>${r.date}</td><td>${r.in}</td><td>${r.out}</td><td>${r.late > 0 ? `${r.late} Menit` : '-'}</td><td><span class="badge clickable-badge" ${badgeStyle} onclick="showHistoryDetail('${r.logId}')" title="Klik untuk detail"><i class="ri-information-line"></i> ${r.status}</span></td><td style="color:var(--success); font-weight:600;">Rp ${r.reward.toLocaleString()}</td><td style="color:var(--danger); font-weight:600;">Rp ${r.penalty.toLocaleString()}</td></tr>`;
     });
-    updateReportStats(rows.length, rows.filter(r => r.status==='On-Time'||r.status==='Early Bird'||r.status==='Piket Tepat Waktu').length, rows.filter(r => r.status==='Late'||r.status==='Piket Terlambat').length, rows.reduce((s, r)=> s+r.reward, 0), rows.reduce((s, r)=> s+r.penalty, 0));
+
+    if (!trs) trs = '<tr><td colspan="8" style="text-align: center; color: var(--text-muted); padding: 20px;">Tidak ada data laporan</td></tr>';
+    body.innerHTML = trs;
+
+    const summary = document.getElementById('reportSummary');
+    if (summary) {
+        summary.innerHTML = `<div style="display: flex; gap: 20px; margin-bottom: 20px; background: white; padding: 15px 20px; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border: 1px solid var(--border-light); flex-wrap: wrap;">
+            <div style="flex: 1; min-width: 120px; text-align: center; border-right: 1px solid var(--border-light);">
+                <div style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase;">Total Hadir (Kantor)</div>
+                <div style="font-size: 1.5rem; font-weight: 800; color: var(--success); margin-top: 5px;">${totalHadir}</div>
+            </div>
+            <div style="flex: 1; min-width: 120px; text-align: center; border-right: 1px solid var(--border-light);">
+                <div style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase;">Total Piket</div>
+                <div style="font-size: 1.5rem; font-weight: 800; color: var(--warning); margin-top: 5px;">${totalPiket}</div>
+            </div>
+            <div style="flex: 1; min-width: 120px; text-align: center;">
+                <div style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase;">Total Telat</div>
+                <div style="font-size: 1.5rem; font-weight: 800; color: var(--danger); margin-top: 5px;">${totalTelat}</div>
+            </div>
+        </div>`;
+    }
 }
 
-function updateReportStats(total, onTime, late, reward, penalty) {
-    const summary = document.getElementById('reportSummary'); if (!summary) return;
-    summary.innerHTML = `<div class="stat-grid">
-        <div class="stat-card"><i class="ri-history-line"></i><h4>Total Log</h4><p>${total}</p></div>
-        <div class="stat-card"><i class="ri-checkbox-circle-line" style="color:var(--success);"></i><h4>Tepat Waktu</h4><p style="color:var(--success);">${onTime}</p></div>
-        <div class="stat-card"><i class="ri-error-warning-line" style="color:var(--danger);"></i><h4>Terlambat</h4><p style="color:var(--danger);">${late}</p></div>
-        <div class="stat-card"><i class="ri-copper-coin-line" style="color:var(--warning);"></i><h4>Total Reward</h4><p style="color:var(--success);">Rp ${reward.toLocaleString()}</p></div>
-        <div class="stat-card"><i class="ri-money-dollar-circle-line" style="color:var(--danger);"></i><h4>Total Denda</h4><p style="color:var(--danger);">Rp ${penalty.toLocaleString()}</p></div>
-    </div>`;
+// --- CETAK PDF ---
+window.exportPDF = function() {
+    if (typeof html2pdf === 'undefined') {
+        return alert("Library PDF belum siap. Silakan refresh halaman.");
+    }
+
+    const reportSection = document.getElementById('reportSection');
+    const tableContainer = reportSection.querySelector('.table-container');
+    const summary = document.getElementById('reportSummary');
+    
+    // Siapkan wrapper sementara untuk dicetak
+    const printWrapper = document.createElement('div');
+    printWrapper.style.padding = '20px';
+    printWrapper.style.fontFamily = 'Inter, sans-serif';
+    printWrapper.style.color = '#1f2937';
+    
+    // Kop Laporan
+    const per = document.getElementById('reportPeriodFilter').options[document.getElementById('reportPeriodFilter').selectedIndex].text;
+    const typeFilter = document.getElementById('reportTypeFilter').options[document.getElementById('reportTypeFilter').selectedIndex].text;
+    
+    printWrapper.innerHTML = `
+        <h2 style="text-align:center; color:#4f46e5; margin-bottom: 5px;">Laporan & Rekap Absensi</h2>
+        <p style="text-align:center; color:#6b7280; font-size:14px; margin-top:0; margin-bottom: 20px;">
+            Periode: ${per} | Tipe: ${typeFilter} | Waktu Cetak: ${new Date().toLocaleString('id-ID')}
+        </p>
+    `;
+    
+    // Copy summary & table
+    const clonedSummary = summary.cloneNode(true);
+    clonedSummary.style.marginBottom = '20px';
+    printWrapper.appendChild(clonedSummary);
+    
+    const clonedTable = tableContainer.cloneNode(true);
+    // Hapus max-height agar tabel utuh ter-print
+    clonedTable.style.maxHeight = 'none';
+    clonedTable.style.overflow = 'visible';
+    const tableEl = clonedTable.querySelector('table');
+    tableEl.style.width = '100%';
+    tableEl.style.borderCollapse = 'collapse';
+    tableEl.querySelectorAll('th, td').forEach(cell => {
+        cell.style.border = '1px solid #e5e7eb';
+        cell.style.padding = '8px';
+        cell.style.fontSize = '12px';
+        cell.style.textAlign = 'left';
+    });
+    tableEl.querySelectorAll('th').forEach(th => {
+        th.style.backgroundColor = '#f3f4f6';
+        th.style.color = '#374151';
+    });
+
+    printWrapper.appendChild(clonedTable);
+    
+    // Generate PDF
+    const opt = {
+        margin:       10,
+        filename:     `Laporan_Absensi_${new Date().toISOString().split('T')[0]}.pdf`,
+        image:        { type: 'jpeg', quality: 0.98 },
+        html2canvas:  { scale: 2 },
+        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'landscape' }
+    };
+    
+    // Tampilkan loading di tombol
+    const btn = event.currentTarget;
+    const origHtml = btn.innerHTML;
+    btn.innerHTML = '<span class="btn-spinner"></span> Menyusun PDF...';
+    btn.disabled = true;
+
+    html2pdf().set(opt).from(printWrapper).save().then(() => {
+        btn.innerHTML = origHtml;
+        btn.disabled = false;
+    }).catch(err => {
+        alert("Gagal mencetak PDF: " + err.message);
+        btn.innerHTML = origHtml;
+        btn.disabled = false;
+    });
 }
 
 // --- UTILS ---

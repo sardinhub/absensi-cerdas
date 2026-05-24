@@ -235,14 +235,24 @@
 
             <!-- Tab: Report -->
             <section id="reportSection" class="glass-card hidden">
-                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
-                    <div style="width: 40px; height: 40px; border-radius: 10px; background: var(--primary-light); display: flex; align-items: center; justify-content: center; color: var(--primary); font-size: 1.2rem;">
-                        <i class="ri-bar-chart-box-line"></i>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <div style="width: 40px; height: 40px; border-radius: 10px; background: var(--primary-light); display: flex; align-items: center; justify-content: center; color: var(--primary); font-size: 1.2rem;">
+                            <i class="ri-bar-chart-box-line"></i>
+                        </div>
+                        <h2 style="margin: 0;">Laporan & Rekap</h2>
                     </div>
-                    <h2 style="margin: 0;">Laporan & Rekap</h2>
+                    <button class="btn btn-primary" onclick="exportPDF()" style="font-size: 0.85rem; padding: 8px 16px; background: var(--success); border: none; box-shadow: 0 2px 4px rgba(16,185,129,0.3);">
+                        <i class="ri-printer-line"></i> Cetak PDF
+                    </button>
                 </div>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 0 0 12px;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 0 0 12px;">
                     <select id="reportEmployeeFilter" class="form-input" onchange="loadReport()"></select>
+                    <select id="reportTypeFilter" class="form-input" onchange="loadReport()">
+                        <option value="all">Semua Tipe Absen</option>
+                        <option value="kantor">Kantor Saja</option>
+                        <option value="piket">Piket Saja</option>
+                    </select>
                     <select id="reportPeriodFilter" class="form-input" onchange="onPeriodFilterChange()">
                         <option value="daily">Hari Ini</option>
                         <option value="weekly">Minggu Ini</option>
@@ -673,6 +683,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.12/dist/face-api.js"></script>
-    <script src="app.js?v=23"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script src="app.js?v=24"></script>
 </body>
 </html>
