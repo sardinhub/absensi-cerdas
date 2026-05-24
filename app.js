@@ -1046,19 +1046,24 @@ function showPiketAttendancePopup({ name, time, type, status, lateMins }) {
 }
 
 // --- REPORT ---
-// Tampilkan/sembunyikan date picker berdasarkan pilihan period filter
+// Tampilkan/sembunyikan date range picker berdasarkan pilihan period filter
 window.onPeriodFilterChange = function() {
     const per = document.getElementById('reportPeriodFilter')?.value;
     const dateRow = document.getElementById('reportDatePickerRow');
-    const dateInput = document.getElementById('reportDateFilter');
+    const dateStart = document.getElementById('reportDateStart');
+    const dateEnd = document.getElementById('reportDateEnd');
     if (per === 'custom') {
-        // Set default ke hari ini jika belum ada nilai
-        if (!dateInput.value) {
+        // Set default: awal bulan ini s/d hari ini
+        if (!dateStart.value || !dateEnd.value) {
             const today = new Date();
-            dateInput.value = today.toISOString().split('T')[0];
+            const todayStr = today.toISOString().split('T')[0];
+            const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+            const startStr = startOfMonth.toISOString().split('T')[0];
+            dateStart.value = startStr;
+            dateEnd.value = todayStr;
         }
         dateRow.style.display = 'flex';
-        dateInput.focus();
+        dateStart.focus();
     } else {
         dateRow.style.display = 'none';
     }
@@ -1067,7 +1072,8 @@ window.onPeriodFilterChange = function() {
 
 window.resetDateFilter = function() {
     document.getElementById('reportPeriodFilter').value = 'daily';
-    document.getElementById('reportDateFilter').value = '';
+    document.getElementById('reportDateStart').value = '';
+    document.getElementById('reportDateEnd').value = '';
     document.getElementById('reportDatePickerRow').style.display = 'none';
     loadReport();
 };
@@ -1085,13 +1091,24 @@ async function loadReport(isAutoRefresh = false) {
     else if (per === 'weekly') { const first = startOfToday.getDate() - startOfToday.getDay(); const startOfWeek = new Date(new Date().setDate(first)); startOfWeek.setHours(0,0,0,0); q = q.gte('check_in_time', startOfWeek.toISOString()); }
     else if (per === 'monthly') { const startOfMonth = new Date(startOfToday.getFullYear(), startOfToday.getMonth(), 1); q = q.gte('check_in_time', startOfMonth.toISOString()); }
     else if (per === 'custom') {
-        const dateVal = document.getElementById('reportDateFilter')?.value;
-        if (dateVal) {
-            const startOfDay = new Date(dateVal + 'T00:00:00');
-            const endOfDay = new Date(dateVal + 'T23:59:59');
-            q = q.gte('check_in_time', startOfDay.toISOString()).lte('check_in_time', endOfDay.toISOString());
+        const startVal = document.getElementById('reportDateStart')?.value;
+        const endVal = document.getElementById('reportDateEnd')?.value;
+        if (startVal && endVal) {
+            const startOfRange = new Date(startVal + 'T00:00:00');
+            const endOfRange = new Date(endVal + 'T23:59:59');
+            // Validasi: pastikan tanggal awal tidak lebih dari tanggal akhir
+            if (startOfRange > endOfRange) {
+                document.getElementById('reportTableBody').innerHTML = '<tr><td colspan="8" style="text-align:center; color:var(--danger); padding:20px;"><i class="ri-error-warning-line"></i> Tanggal awal tidak boleh lebih dari tanggal akhir.</td></tr>';
+                return;
+            }
+            q = q.gte('check_in_time', startOfRange.toISOString()).lte('check_in_time', endOfRange.toISOString());
+        } else if (startVal) {
+            // Jika hanya tanggal awal yang diisi, tampilkan dari tanggal itu sampai hari ini
+            const startOfRange = new Date(startVal + 'T00:00:00');
+            const endOfRange = new Date(startOfToday.getTime() + 86399999);
+            q = q.gte('check_in_time', startOfRange.toISOString()).lte('check_in_time', endOfRange.toISOString());
         } else {
-            // Fallback: tampilkan hari ini jika tanggal belum dipilih
+            // Fallback: hari ini
             q = q.gte('check_in_time', startOfToday.toISOString());
         }
     }
