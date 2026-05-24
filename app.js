@@ -340,41 +340,54 @@ async function loadAdminCheckoutPending() {
     itemsEl.innerHTML = '<div style="text-align:center;padding:10px;color:var(--text-light);font-size:0.85rem;"><span class="btn-spinner" style="width:14px;height:14px;display:inline-block;"></span> Memuat data...</div>';
     empSelect.innerHTML = '';
     try {
-        const today = new Date(); today.setHours(0, 0, 0, 0);
-        // Ambil semua log hari ini yang relevan
-        const { data: todayLogs } = await supabaseClient
+        const lookupDate = new Date(); 
+        lookupDate.setDate(lookupDate.getDate() - 3); // Cari hingga 3 hari ke belakang
+        // Ambil semua log 3 hari terakhir, urutkan berdasarkan waktu (ascending)
+        const { data: recentLogs } = await supabaseClient
             .from('attendance_logs')
             .select('employee_id, type, check_in_time, employees(full_name)')
-            .gte('check_in_time', today.toISOString())
-            .in('type', ['in', 'out', 'piket_in', 'piket_out']);
-        // Kelompokkan per employee — gunakan allEmployees untuk nama (lebih reliable dari join)
+            .gte('check_in_time', lookupDate.toISOString())
+            .in('type', ['in', 'out', 'piket_in', 'piket_out'])
+            .order('check_in_time', { ascending: true });
+
+        // Evaluasi state per employee secara kronologis
         const empMap = {};
-        todayLogs?.forEach(log => {
+        recentLogs?.forEach(log => {
             const eid = log.employee_id;
             if (!empMap[eid]) {
                 const empData = allEmployees.find(e => e.id === eid);
                 const empName = empData?.full_name || log.employees?.full_name || 'N/A';
-                empMap[eid] = { id: eid, name: empName, hasIn: false, hasOut: false, hasPiketIn: false, hasPiketOut: false, checkInTime: null, piketInTime: null };
+                empMap[eid] = { id: eid, name: empName, pendingType: null, checkInTime: null };
             }
-            if (log.type === 'in')        { empMap[eid].hasIn = true; empMap[eid].checkInTime = log.check_in_time; }
-            if (log.type === 'out')       empMap[eid].hasOut = true;
-            if (log.type === 'piket_in')  { empMap[eid].hasPiketIn = true; empMap[eid].piketInTime = log.check_in_time; }
-            if (log.type === 'piket_out') empMap[eid].hasPiketOut = true;
+            if (log.type === 'in') {
+                empMap[eid].pendingType = 'out';
+                empMap[eid].checkInTime = log.check_in_time;
+            } else if (log.type === 'out') {
+                if (empMap[eid].pendingType === 'out') empMap[eid].pendingType = null;
+            } else if (log.type === 'piket_in') {
+                empMap[eid].pendingType = 'piket_out';
+                empMap[eid].checkInTime = log.check_in_time;
+            } else if (log.type === 'piket_out') {
+                if (empMap[eid].pendingType === 'piket_out') empMap[eid].pendingType = null;
+            }
         });
-        // Cari yang belum pulang
-        const pendingOut      = Object.values(empMap).filter(e => e.hasIn && !e.hasOut).map(e => ({ ...e, pendingType: 'out' }));
-        const pendingPiketOut = Object.values(empMap).filter(e => e.hasPiketIn && !e.hasPiketOut).map(e => ({ ...e, pendingType: 'piket_out' }));
-        const allPending = [...pendingOut, ...pendingPiketOut];
+
+        // Ambil staf yang masih menggantung (belum pulang)
+        const allPending = Object.values(empMap).filter(e => e.pendingType !== null);
         if (allPending.length === 0) {
-            itemsEl.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;gap:8px;padding:12px;"><i class="ri-checkbox-circle-line" style="color:var(--success);font-size:1.2rem;"></i><span style="color:var(--success);font-weight:600;font-size:0.85rem;">Semua staf sudah absen pulang hari ini ✅</span></div>`;
+            itemsEl.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;gap:8px;padding:12px;"><i class="ri-checkbox-circle-line" style="color:var(--success);font-size:1.2rem;"></i><span style="color:var(--success);font-weight:600;font-size:0.85rem;">Semua staf sudah absen pulang ✅</span></div>`;
             empSelect.innerHTML = '<option value="">-- Tidak ada staf yang perlu dibantu --</option>';
             return;
         }
         // Render daftar staf belum pulang
         let html = '';
         allPending.forEach(e => {
-            const masukTime = e.pendingType === 'out' ? e.checkInTime : e.piketInTime;
-            const masukStr  = masukTime ? new Date(masukTime).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '-';
+            const masukTime = e.checkInTime;
+            const d = new Date(masukTime);
+            // Tampilkan tanggal juga jika kemarin
+            const isToday = (d.toDateString() === new Date().toDateString());
+            const masukStr = isToday ? d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : 
+                                      `${d.getDate()}/${d.getMonth()+1} ${d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}`;
             const piketTag  = e.pendingType === 'piket_out' ? '<span style="background:rgba(217,119,6,0.12);color:var(--warning);border-radius:4px;padding:1px 7px;font-size:0.7rem;font-weight:700;margin-left:5px;">PIKET</span>' : '';
             html += `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 4px;border-bottom:1px solid var(--border-light);"><span style="font-weight:600;font-size:0.85rem;color:var(--text-main);">${e.name}${piketTag}</span><span style="font-size:0.78rem;color:var(--text-muted);"><i class="ri-login-box-line"></i> Masuk ${masukStr}</span></div>`;
             empSelect.innerHTML += `<option value="${e.id}" data-type="${e.pendingType}">${e.name}${e.pendingType === 'piket_out' ? ' (Piket)' : ''}</option>`;
