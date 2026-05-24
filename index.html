@@ -238,13 +238,22 @@
                     </div>
                     <h2 style="margin: 0;">Laporan & Rekap</h2>
                 </div>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 0 0 20px;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 0 0 12px;">
                     <select id="reportEmployeeFilter" class="form-input" onchange="loadReport()"></select>
-                    <select id="reportPeriodFilter" class="form-input" onchange="loadReport()">
+                    <select id="reportPeriodFilter" class="form-input" onchange="onPeriodFilterChange()">
                         <option value="daily">Hari Ini</option>
                         <option value="weekly">Minggu Ini</option>
                         <option value="monthly">Bulan Ini</option>
+                        <option value="custom">Pilih Tanggal...</option>
                     </select>
+                </div>
+                <div id="reportDatePickerRow" style="display: none; align-items: center; gap: 10px; margin: 0 0 20px; background: var(--primary-light); border: 1px solid rgba(79,70,229,0.15); border-radius: 10px; padding: 12px 16px;">
+                    <i class="ri-calendar-search-line" style="color: var(--primary); font-size: 1.1rem; flex-shrink: 0;"></i>
+                    <span style="font-size: 0.85rem; font-weight: 600; color: var(--primary); white-space: nowrap;">Tanggal:</span>
+                    <input type="date" id="reportDateFilter" class="form-input" style="flex: 1; background: white; max-width: 200px; padding: 8px 12px;" onchange="loadReport()">
+                    <button onclick="resetDateFilter()" style="background: none; border: 1px solid rgba(79,70,229,0.25); color: var(--primary); border-radius: 7px; padding: 6px 12px; font-size: 0.8rem; font-weight: 600; cursor: pointer; white-space: nowrap; display: flex; align-items: center; gap: 5px; transition: all 0.2s;">
+                        <i class="ri-refresh-line"></i> Reset
+                    </button>
                 </div>
                 <div id="reportSummary"></div>
                 <div class="table-container">
@@ -591,6 +600,6 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.12/dist/face-api.js"></script>
-    <script src="app.js?v=17"></script>
+    <script src="app.js?v=18"></script>
 </body>
 </html>

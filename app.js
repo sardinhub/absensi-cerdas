@@ -1046,6 +1046,32 @@ function showPiketAttendancePopup({ name, time, type, status, lateMins }) {
 }
 
 // --- REPORT ---
+// Tampilkan/sembunyikan date picker berdasarkan pilihan period filter
+window.onPeriodFilterChange = function() {
+    const per = document.getElementById('reportPeriodFilter')?.value;
+    const dateRow = document.getElementById('reportDatePickerRow');
+    const dateInput = document.getElementById('reportDateFilter');
+    if (per === 'custom') {
+        // Set default ke hari ini jika belum ada nilai
+        if (!dateInput.value) {
+            const today = new Date();
+            dateInput.value = today.toISOString().split('T')[0];
+        }
+        dateRow.style.display = 'flex';
+        dateInput.focus();
+    } else {
+        dateRow.style.display = 'none';
+    }
+    loadReport();
+};
+
+window.resetDateFilter = function() {
+    document.getElementById('reportPeriodFilter').value = 'daily';
+    document.getElementById('reportDateFilter').value = '';
+    document.getElementById('reportDatePickerRow').style.display = 'none';
+    loadReport();
+};
+
 async function loadReport(isAutoRefresh = false) {
     const emp = document.getElementById('reportEmployeeFilter')?.value || 'all', per = document.getElementById('reportPeriodFilter')?.value || 'daily', body = document.getElementById('reportTableBody');
     if (!body) return;
@@ -1058,6 +1084,17 @@ async function loadReport(isAutoRefresh = false) {
     if (per === 'daily') q = q.gte('check_in_time', startOfToday.toISOString());
     else if (per === 'weekly') { const first = startOfToday.getDate() - startOfToday.getDay(); const startOfWeek = new Date(new Date().setDate(first)); startOfWeek.setHours(0,0,0,0); q = q.gte('check_in_time', startOfWeek.toISOString()); }
     else if (per === 'monthly') { const startOfMonth = new Date(startOfToday.getFullYear(), startOfToday.getMonth(), 1); q = q.gte('check_in_time', startOfMonth.toISOString()); }
+    else if (per === 'custom') {
+        const dateVal = document.getElementById('reportDateFilter')?.value;
+        if (dateVal) {
+            const startOfDay = new Date(dateVal + 'T00:00:00');
+            const endOfDay = new Date(dateVal + 'T23:59:59');
+            q = q.gte('check_in_time', startOfDay.toISOString()).lte('check_in_time', endOfDay.toISOString());
+        } else {
+            // Fallback: tampilkan hari ini jika tanggal belum dipilih
+            q = q.gte('check_in_time', startOfToday.toISOString());
+        }
+    }
     const { data, error } = await q.order('check_in_time', { ascending: true });
     if (error) return body.innerHTML = `<tr><td colspan="8">Error: ${error.message}</td></tr>`;
     const grouped = {};
