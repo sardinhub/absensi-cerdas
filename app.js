@@ -357,23 +357,32 @@ async function loadAdminCheckoutPending() {
             if (!empMap[eid]) {
                 const empData = allEmployees.find(e => e.id === eid);
                 const empName = empData?.full_name || log.employees?.full_name || 'N/A';
-                empMap[eid] = { id: eid, name: empName, pendingType: null, checkInTime: null };
+                empMap[eid] = { id: eid, name: empName, pendingOut: false, pendingPiketOut: false, inTime: null, piketInTime: null };
             }
             if (log.type === 'in') {
-                empMap[eid].pendingType = 'out';
-                empMap[eid].checkInTime = log.check_in_time;
+                empMap[eid].pendingOut = true;
+                empMap[eid].inTime = log.check_in_time;
             } else if (log.type === 'out') {
-                if (empMap[eid].pendingType === 'out') empMap[eid].pendingType = null;
+                empMap[eid].pendingOut = false;
             } else if (log.type === 'piket_in') {
-                empMap[eid].pendingType = 'piket_out';
-                empMap[eid].checkInTime = log.check_in_time;
+                empMap[eid].pendingPiketOut = true;
+                empMap[eid].piketInTime = log.check_in_time;
             } else if (log.type === 'piket_out') {
-                if (empMap[eid].pendingType === 'piket_out') empMap[eid].pendingType = null;
+                empMap[eid].pendingPiketOut = false;
             }
         });
 
         // Ambil staf yang masih menggantung (belum pulang)
-        const allPending = Object.values(empMap).filter(e => e.pendingType !== null);
+        // Jika staf punya pending regular & piket sekaligus, masukkan sebagai 2 entri yang berbeda
+        const allPending = [];
+        Object.values(empMap).forEach(e => {
+            if (e.pendingOut) {
+                allPending.push({ id: e.id, name: e.name, pendingType: 'out', checkInTime: e.inTime });
+            }
+            if (e.pendingPiketOut) {
+                allPending.push({ id: e.id, name: e.name, pendingType: 'piket_out', checkInTime: e.piketInTime });
+            }
+        });
         if (allPending.length === 0) {
             itemsEl.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;gap:8px;padding:12px;"><i class="ri-checkbox-circle-line" style="color:var(--success);font-size:1.2rem;"></i><span style="color:var(--success);font-weight:600;font-size:0.85rem;">Semua staf sudah absen pulang ✅</span></div>`;
             empSelect.innerHTML = '<option value="">-- Tidak ada staf yang perlu dibantu --</option>';
