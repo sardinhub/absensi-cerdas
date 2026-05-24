@@ -292,6 +292,8 @@ async function loadHistory(isAutoRefresh = false) {
             } else if (log.type === 'manual' && log.status === 'Tugas Luar') {
                 const infoBadgeStyle = 'style="background: rgba(2, 132, 199, 0.1); color: var(--info); border: 1px solid rgba(2, 132, 199, 0.15); cursor: pointer;"';
                 noteText = `<span class="badge clickable-badge" ${infoBadgeStyle} onclick="showHistoryDetail('${log.id}')" title="Klik untuk detail"><i class="ri-information-line"></i> Tugas Luar</span>`;
+            } else if (log.notes && log.notes.startsWith('[Admin Override]')) {
+                noteText = `<span class="badge" style="background: rgba(217,119,6,0.1); color: var(--warning); border: 1px solid rgba(217,119,6,0.2);" title="${log.notes.replace('[Admin Override] ', '')}"><i class="ri-shield-user-line"></i> Admin Override</span>`;
             } else {
                 noteText = log.notes || '-';
             }
@@ -312,6 +314,136 @@ window.saveManualAttendance = async () => {
     const id = document.getElementById('manualEmpId').value, st = document.getElementById('manualStatus').value, nt = document.getElementById('manualNote').value;
     const { error } = await supabaseClient.from('attendance_logs').insert([{ employee_id: id, check_in_time: new Date().toISOString(), status: st, type: 'manual', notes: nt, reward_amount: 0, penalty_amount: 0 }]);
     if (!error) { alert("Sukses!"); closeModals(); loadHistory(false); }
+};
+
+// --- ADMIN OVERRIDE: BANTU ABSEN PULANG ---
+window.openAdminCheckout = async function() {
+    if (!isAdmin) return alert("Akses ditolak! Fitur ini hanya untuk admin.");
+    // Reset form
+    document.getElementById('adminCheckoutNotes').value = '';
+    document.getElementById('adminCheckoutPass').value = '';
+    // Default jam pulang: jam kerja selesai hari ini (tapi tidak lebih dari sekarang)
+    const now = new Date();
+    const sched = getSchedule(now.getDay());
+    let defaultTime = sched ? parseTime(sched.out) : now;
+    if (defaultTime > now) defaultTime = now;
+    const pad = n => String(n).padStart(2, '0');
+    document.getElementById('adminCheckoutTime').value =
+        `${defaultTime.getFullYear()}-${pad(defaultTime.getMonth()+1)}-${pad(defaultTime.getDate())}T${pad(defaultTime.getHours())}:${pad(defaultTime.getMinutes())}`;
+    document.getElementById('adminCheckoutModal').classList.remove('hidden');
+    await loadAdminCheckoutPending();
+};
+
+async function loadAdminCheckoutPending() {
+    const itemsEl = document.getElementById('adminCheckoutPendingItems');
+    const empSelect = document.getElementById('adminCheckoutEmpId');
+    itemsEl.innerHTML = '<div style="text-align:center;padding:10px;color:var(--text-light);font-size:0.85rem;"><span class="btn-spinner" style="width:14px;height:14px;display:inline-block;"></span> Memuat data...</div>';
+    empSelect.innerHTML = '';
+    try {
+        const today = new Date(); today.setHours(0, 0, 0, 0);
+        // Ambil semua log hari ini yang relevan
+        const { data: todayLogs } = await supabaseClient
+            .from('attendance_logs')
+            .select('employee_id, type, check_in_time, employees(full_name)')
+            .gte('check_in_time', today.toISOString())
+            .in('type', ['in', 'out', 'piket_in', 'piket_out']);
+        // Kelompokkan per employee
+        const empMap = {};
+        todayLogs?.forEach(log => {
+            const eid = log.employee_id;
+            if (!empMap[eid]) empMap[eid] = { id: eid, name: log.employees?.full_name || 'N/A', hasIn: false, hasOut: false, hasPiketIn: false, hasPiketOut: false, checkInTime: null, piketInTime: null };
+            if (log.type === 'in')        { empMap[eid].hasIn = true; empMap[eid].checkInTime = log.check_in_time; }
+            if (log.type === 'out')       empMap[eid].hasOut = true;
+            if (log.type === 'piket_in')  { empMap[eid].hasPiketIn = true; empMap[eid].piketInTime = log.check_in_time; }
+            if (log.type === 'piket_out') empMap[eid].hasPiketOut = true;
+        });
+        // Cari yang belum pulang
+        const pendingOut      = Object.values(empMap).filter(e => e.hasIn && !e.hasOut).map(e => ({ ...e, pendingType: 'out' }));
+        const pendingPiketOut = Object.values(empMap).filter(e => e.hasPiketIn && !e.hasPiketOut).map(e => ({ ...e, pendingType: 'piket_out' }));
+        const allPending = [...pendingOut, ...pendingPiketOut];
+        if (allPending.length === 0) {
+            itemsEl.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;gap:8px;padding:12px;"><i class="ri-checkbox-circle-line" style="color:var(--success);font-size:1.2rem;"></i><span style="color:var(--success);font-weight:600;font-size:0.85rem;">Semua staf sudah absen pulang hari ini ✅</span></div>`;
+            empSelect.innerHTML = '<option value="">-- Tidak ada staf yang perlu dibantu --</option>';
+            return;
+        }
+        // Render daftar staf belum pulang
+        let html = '';
+        allPending.forEach(e => {
+            const masukTime = e.pendingType === 'out' ? e.checkInTime : e.piketInTime;
+            const masukStr  = masukTime ? new Date(masukTime).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '-';
+            const piketTag  = e.pendingType === 'piket_out' ? '<span style="background:rgba(217,119,6,0.12);color:var(--warning);border-radius:4px;padding:1px 7px;font-size:0.7rem;font-weight:700;margin-left:5px;">PIKET</span>' : '';
+            html += `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 4px;border-bottom:1px solid var(--border-light);"><span style="font-weight:600;font-size:0.85rem;color:var(--text-main);">${e.name}${piketTag}</span><span style="font-size:0.78rem;color:var(--text-muted);"><i class="ri-login-box-line"></i> Masuk ${masukStr}</span></div>`;
+            empSelect.innerHTML += `<option value="${e.id}" data-type="${e.pendingType}">${e.name}${e.pendingType === 'piket_out' ? ' (Piket)' : ''}</option>`;
+        });
+        itemsEl.innerHTML = html;
+        onAdminCheckoutEmpChange();
+    } catch (err) {
+        itemsEl.innerHTML = `<div style="color:var(--danger);font-size:0.85rem;padding:8px;"><i class="ri-error-warning-line"></i> Gagal memuat data: ${err.message}</div>`;
+    }
+}
+
+window.onAdminCheckoutEmpChange = function() {
+    const sel = document.getElementById('adminCheckoutEmpId');
+    const typeSelect = document.getElementById('adminCheckoutType');
+    const selectedOpt = sel.options[sel.selectedIndex];
+    if (selectedOpt && selectedOpt.dataset.type) typeSelect.value = selectedOpt.dataset.type;
+};
+
+window.saveAdminCheckout = async function() {
+    const empId    = document.getElementById('adminCheckoutEmpId').value;
+    const type     = document.getElementById('adminCheckoutType').value;
+    const timeVal  = document.getElementById('adminCheckoutTime').value;
+    const notes    = document.getElementById('adminCheckoutNotes').value.trim();
+    const pass     = document.getElementById('adminCheckoutPass').value;
+    if (!empId)   return alert("Pilih staf terlebih dahulu!");
+    if (!timeVal) return alert("Isi jam pulang!");
+    if (!notes)   return alert("Isi catatan / alasan override!");
+    if (pass !== CONFIG.adminPassword) return alert("Password admin salah!");
+    const checkoutTime = new Date(timeVal);
+    if (isNaN(checkoutTime.getTime())) return alert("Format waktu tidak valid!");
+    if (checkoutTime > new Date()) return alert("Jam pulang tidak boleh lebih dari waktu sekarang!");
+    // Validasi: jam pulang harus setelah jam masuk
+    try {
+        const today = new Date(); today.setHours(0, 0, 0, 0);
+        const inType = type === 'piket_out' ? 'piket_in' : 'in';
+        const { data: inLog } = await supabaseClient.from('attendance_logs')
+            .select('check_in_time').eq('employee_id', empId).eq('type', inType)
+            .gte('check_in_time', today.toISOString()).order('check_in_time', { ascending: false }).limit(1);
+        if (inLog && inLog.length > 0) {
+            const checkInTime = new Date(inLog[0].check_in_time);
+            if (checkoutTime <= checkInTime)
+                return alert(`Jam pulang (${checkoutTime.toLocaleTimeString('id-ID', {hour:'2-digit',minute:'2-digit'})}) tidak boleh lebih awal atau sama dengan jam masuk (${checkInTime.toLocaleTimeString('id-ID', {hour:'2-digit',minute:'2-digit'})})!`);
+        }
+    } catch (e) { console.error("Gagal validasi jam masuk:", e); }
+    // Simpan
+    const saveBtn = document.getElementById('adminCheckoutSaveBtn');
+    const origHTML = saveBtn.innerHTML;
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = '<span class="btn-spinner"></span> Menyimpan...';
+    try {
+        const statusSave = type === 'piket_out' ? 'Piket Selesai' : 'Pulang';
+        const { error } = await supabaseClient.from('attendance_logs').insert([{
+            employee_id: empId,
+            check_in_time: checkoutTime.toISOString(),
+            type,
+            status: statusSave,
+            notes: `[Admin Override] ${notes}`,
+            reward_amount: 0,
+            penalty_amount: 0,
+            late_duration_minutes: 0
+        }]);
+        if (error) throw error;
+        const emp = allEmployees.find(e => e.id === empId);
+        alert(`✅ Berhasil! Absen pulang ${emp?.full_name || 'staf'} telah disimpan.`);
+        closeModals();
+        loadHistory(false);
+        loadReport(false);
+    } catch (e) {
+        alert("Gagal menyimpan: " + e.message);
+    } finally {
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = origHTML;
+    }
 };
 
 window.openEditLog = async function(logId) {

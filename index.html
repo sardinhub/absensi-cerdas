@@ -193,9 +193,12 @@
                             </div>
                             <h2 style="margin: 0;">Riwayat Aktivitas</h2>
                         </div>
-                        <div style="display: flex; gap: 10px;">
+                        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
                             <button class="btn btn-primary" onclick="openManualAttendance()" style="font-size: 0.8rem; padding: 8px 16px;">
                                 <i class="ri-edit-box-line"></i> Input Manual
+                            </button>
+                            <button class="btn btn-primary" onclick="openAdminCheckout()" style="font-size: 0.8rem; padding: 8px 16px; background: var(--warning); box-shadow: 0 1px 3px rgba(217,119,6,0.3); border: none;">
+                                <i class="ri-user-follow-line"></i> Bantu Absen Pulang
                             </button>
                             <button class="btn btn-secondary" onclick="loadHistory()" style="padding: 8px 16px;">
                                 <i class="ri-refresh-line"></i> Refresh
@@ -545,6 +548,67 @@
         </div>
     </div>
 
+    <!-- Modal: Bantu Absen Pulang (Admin Override) -->
+    <div id="adminCheckoutModal" class="modal hidden">
+        <div class="glass-card" style="width: 500px; max-height: 88vh; overflow-y: auto;">
+            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
+                <div style="width: 40px; height: 40px; border-radius: 10px; background: var(--warning-light); display: flex; align-items: center; justify-content: center; color: var(--warning); font-size: 1.2rem; flex-shrink: 0;">
+                    <i class="ri-user-follow-line"></i>
+                </div>
+                <div>
+                    <h3 style="margin: 0;">Bantu Absen Pulang</h3>
+                    <p style="margin: 2px 0 0; font-size: 0.75rem; color: var(--text-muted);">Admin Override — Tanpa verifikasi wajah &amp; lokasi</p>
+                </div>
+            </div>
+
+            <!-- Panel: Daftar staf belum pulang -->
+            <div style="background: var(--bg-input); border: 1px solid var(--border-color); border-radius: 10px; padding: 14px; margin-bottom: 18px;">
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
+                    <i class="ri-alarm-warning-line" style="color: var(--warning);"></i>
+                    <span style="font-size: 0.82rem; font-weight: 700; color: var(--text-secondary);">Staff Belum Absen Pulang Hari Ini</span>
+                </div>
+                <div id="adminCheckoutPendingItems">
+                    <div style="text-align: center; padding: 10px; color: var(--text-light); font-size: 0.85rem;">Memuat...</div>
+                </div>
+            </div>
+
+            <!-- Form Override -->
+            <div style="display: grid; gap: 14px; margin-bottom: 20px;">
+                <div>
+                    <label class="form-label">Pilih Staf</label>
+                    <select id="adminCheckoutEmpId" class="form-input" onchange="onAdminCheckoutEmpChange()"></select>
+                </div>
+                <div>
+                    <label class="form-label">Tipe Pulang</label>
+                    <select id="adminCheckoutType" class="form-input">
+                        <option value="out">Pulang Kantor</option>
+                        <option value="piket_out">Pulang Piket</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label">Jam Pulang</label>
+                    <input type="datetime-local" id="adminCheckoutTime" class="form-input">
+                    <small style="color: var(--text-light); font-size: 0.72rem; margin-top: 4px; display: block;">Default: jam kerja selesai. Tidak boleh lebih dari waktu sekarang.</small>
+                </div>
+                <div>
+                    <label class="form-label">Catatan / Alasan Override</label>
+                    <textarea id="adminCheckoutNotes" class="form-input" style="height: 70px;" placeholder="Contoh: Staff lupa scan karena terburu-buru saat pulang"></textarea>
+                </div>
+                <div style="background: var(--danger-light); border: 1px solid rgba(220,38,38,0.12); border-radius: 8px; padding: 12px;">
+                    <label class="form-label" style="color: var(--danger); margin-bottom: 8px;"><i class="ri-lock-password-line"></i> Konfirmasi Password Admin</label>
+                    <input type="password" id="adminCheckoutPass" class="form-input" placeholder="Masukkan password admin untuk konfirmasi" style="background: white;">
+                </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <button class="btn btn-secondary" onclick="closeModals()">Batal</button>
+                <button class="btn btn-primary" id="adminCheckoutSaveBtn" onclick="saveAdminCheckout()" style="background: var(--warning); box-shadow: 0 1px 3px rgba(217,119,6,0.3); border: none;">
+                    <i class="ri-save-3-fill"></i> Simpan Override
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Attendance Result Popup -->
     <div id="attendancePopup" class="modal hidden">
         <div class="glass-card" style="width: 400px; text-align: center;">
@@ -609,6 +673,6 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.12/dist/face-api.js"></script>
-    <script src="app.js?v=19"></script>
+    <script src="app.js?v=20"></script>
 </body>
 </html>
