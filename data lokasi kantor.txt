@@ -1,0 +1,3 @@
+Latitude Kantor: -5.075586344908145
+Longitude Kantor: 119.53109741829475
+Radius Area: 10
