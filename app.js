@@ -1458,80 +1458,409 @@ async function loadReport(isAutoRefresh = false) {
 }
 
 // --- CETAK PDF ---
-window.exportPDF = function() {
-    if (typeof html2pdf === 'undefined') {
+window.exportPDF = async function() {
+    // Pastikan jsPDF tersedia (bundled dengan html2pdf)
+    const jsPDFCtor = (window.jspdf && window.jspdf.jsPDF) || (window.jsPDF);
+    if (!jsPDFCtor) {
         return alert("Library PDF belum siap. Silakan refresh halaman.");
     }
 
-    const reportSection = document.getElementById('reportSection');
-    const tableContainer = reportSection.querySelector('.table-container');
-    const summary = document.getElementById('reportSummary');
-    
-    // Siapkan wrapper sementara untuk dicetak
-    const printWrapper = document.createElement('div');
-    printWrapper.style.padding = '20px';
-    printWrapper.style.fontFamily = 'Inter, sans-serif';
-    printWrapper.style.color = '#1f2937';
-    
-    // Kop Laporan
-    const per = document.getElementById('reportPeriodFilter').options[document.getElementById('reportPeriodFilter').selectedIndex].text;
-    const typeFilter = document.getElementById('reportTypeFilter').options[document.getElementById('reportTypeFilter').selectedIndex].text;
-    
-    printWrapper.innerHTML = `
-        <h2 style="text-align:center; color:#4f46e5; margin-bottom: 5px;">Laporan & Rekap Absensi</h2>
-        <p style="text-align:center; color:#6b7280; font-size:14px; margin-top:0; margin-bottom: 20px;">
-            Periode: ${per} | Tipe: ${typeFilter} | Waktu Cetak: ${new Date().toLocaleString('id-ID')}
-        </p>
-    `;
-    
-    // Copy summary & table
-    const clonedSummary = summary.cloneNode(true);
-    clonedSummary.style.marginBottom = '20px';
-    printWrapper.appendChild(clonedSummary);
-    
-    const clonedTable = tableContainer.cloneNode(true);
-    // Hapus max-height agar tabel utuh ter-print
-    clonedTable.style.maxHeight = 'none';
-    clonedTable.style.overflow = 'visible';
-    const tableEl = clonedTable.querySelector('table');
-    tableEl.style.width = '100%';
-    tableEl.style.borderCollapse = 'collapse';
-    tableEl.querySelectorAll('th, td').forEach(cell => {
-        cell.style.border = '1px solid #e5e7eb';
-        cell.style.padding = '8px';
-        cell.style.fontSize = '12px';
-        cell.style.textAlign = 'left';
-    });
-    tableEl.querySelectorAll('th').forEach(th => {
-        th.style.backgroundColor = '#f3f4f6';
-        th.style.color = '#374151';
-    });
-
-    printWrapper.appendChild(clonedTable);
-    
-    // Generate PDF
-    const opt = {
-        margin:       10,
-        filename:     `Laporan_Absensi_${new Date().toISOString().split('T')[0]}.pdf`,
-        image:        { type: 'jpeg', quality: 0.98 },
-        html2canvas:  { scale: 2 },
-        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'landscape' }
-    };
-    
-    // Tampilkan loading di tombol
     const btn = event.currentTarget;
     const origHtml = btn.innerHTML;
     btn.innerHTML = '<span class="btn-spinner"></span> Menyusun PDF...';
     btn.disabled = true;
 
-    html2pdf().set(opt).from(printWrapper).save().then(() => {
+    try {
+        // ── Ambil data dari tabel laporan yang sedang tampil ──
+        const tbody = document.getElementById('reportTableBody');
+        const rows = Array.from(tbody.querySelectorAll('tr'));
+
+        // Ambil teks bersih setiap sel (hapus badge HTML)
+        const tableData = rows.map(tr =>
+            Array.from(tr.querySelectorAll('td')).map(td => td.innerText.trim().replace(/\s+/g, ' '))
+        ).filter(r => r.length > 0 && r[0] !== '' && !r[0].includes('Tidak ada data') && !r[0].includes('Laporan muncul'));
+
+        // ── Info filter ──
+        const per      = document.getElementById('reportPeriodFilter').options[document.getElementById('reportPeriodFilter').selectedIndex].text;
+        const tipeEl   = document.getElementById('reportTypeFilter');
+        const tipe     = tipeEl ? tipeEl.options[tipeEl.selectedIndex].text : 'Semua';
+        const empEl    = document.getElementById('reportEmployeeFilter');
+        const empText  = empEl ? empEl.options[empEl.selectedIndex].text : 'Semua Staf';
+        const printDate = new Date().toLocaleString('id-ID', { dateStyle: 'long', timeStyle: 'short' });
+
+        // ── Hitung statistik dari tableData ──
+        let totalHadir = 0, totalPiket = 0, totalTelat = 0, totalReward = 0, totalDenda = 0;
+        const statusCount = {};
+        tableData.forEach(row => {
+            const nameSt  = row[0] || '';
+            const status  = row[5] || '';
+            const rewardS = (row[6] || '').replace(/[^0-9]/g, '');
+            const dendaS  = (row[7] || '').replace(/[^0-9]/g, '');
+            if (nameSt.toUpperCase().includes('PIKET')) totalPiket++;
+            else totalHadir++;
+            if (status.toLowerCase().includes('terlambat') || status.toLowerCase() === 'late') totalTelat++;
+            totalReward += parseInt(rewardS) || 0;
+            totalDenda  += parseInt(dendaS)  || 0;
+            statusCount[status] = (statusCount[status] || 0) + 1;
+        });
+
+        // ── Setup jsPDF A4 Portrait ──
+        const doc = new jsPDFCtor({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+        const PW = doc.internal.pageSize.getWidth();   // 297mm
+        const PH = doc.internal.pageSize.getHeight();  // 210mm
+        const ML = 12, MR = 12, MT = 12, MB = 15;
+        const contentW = PW - ML - MR;
+
+        // ── Warna tema ──
+        const C_PRIMARY  = [79, 70, 229];
+        const C_SUCCESS  = [5, 150, 105];
+        const C_WARNING  = [217, 119, 6];
+        const C_DANGER   = [220, 38, 38];
+        const C_MUTED    = [107, 114, 128];
+        const C_LIGHT    = [243, 244, 246];
+        const C_BORDER   = [229, 231, 235];
+        const C_WHITE    = [255, 255, 255];
+        const C_DARK     = [31, 41, 55];
+
+        // ── Helper: gambar header halaman ──
+        const drawPageHeader = (pageNum) => {
+            // Strip ungu di atas
+            doc.setFillColor(...C_PRIMARY);
+            doc.rect(0, 0, PW, 22, 'F');
+
+            doc.setTextColor(...C_WHITE);
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(13);
+            doc.text('LAPORAN & REKAP ABSENSI KARYAWAN', PW / 2, 9, { align: 'center' });
+
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(7.5);
+            doc.text(`Periode: ${per}  |  Tipe: ${tipe}  |  Staf: ${empText}  |  Dicetak: ${printDate}`, PW / 2, 15.5, { align: 'center' });
+
+            // Nomor halaman
+            doc.setFontSize(7);
+            doc.text(`Hal. ${pageNum}`, PW - MR, 15.5, { align: 'right' });
+        };
+
+        // ── Helper: gambar footer ──
+        const drawPageFooter = () => {
+            doc.setDrawColor(...C_BORDER);
+            doc.setLineWidth(0.3);
+            doc.line(ML, PH - MB + 4, PW - MR, PH - MB + 4);
+            doc.setTextColor(...C_MUTED);
+            doc.setFontSize(7);
+            doc.setFont('helvetica', 'italic');
+            doc.text('Dokumen ini dicetak secara otomatis oleh Sistem Absensi Cerdas', ML, PH - MB + 9);
+            doc.text(`© ${new Date().getFullYear()} Absensi Cerdas`, PW - MR, PH - MB + 9, { align: 'right' });
+        };
+
+        // ── Kolom tabel ──
+        const headers = ['NAMA STAF', 'TANGGAL', 'MASUK', 'PULANG', 'TELAT', 'STATUS', 'REWARD', 'DENDA'];
+        const colW    = [62, 22, 18, 18, 16, 36, 26, 26]; // total ~224, contentW ~273 → adjust
+        // Scale to fit
+        const totalColW = colW.reduce((a, b) => a + b, 0);
+        const scale = contentW / totalColW;
+        const cW = colW.map(w => w * scale);
+
+        const ROW_H     = 7.5;
+        const HEADER_H  = 8.5;
+        const PAGE_HEADER_H = 24;
+        const PAGE_FOOTER_H = MB + 2;
+        const usableH   = PH - PAGE_HEADER_H - PAGE_FOOTER_H;
+
+        // ── Fungsi gambar header tabel ──
+        const drawTableHeader = (y) => {
+            doc.setFillColor(...C_PRIMARY);
+            doc.rect(ML, y, contentW, HEADER_H, 'F');
+            doc.setTextColor(...C_WHITE);
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(7.5);
+            let x = ML;
+            headers.forEach((h, i) => {
+                doc.text(h, x + 2, y + HEADER_H - 2.5);
+                x += cW[i];
+            });
+            return y + HEADER_H;
+        };
+
+        // ── HALAMAN 1: Tabel ──
+        let pageNum = 1;
+        doc.addPage(); // placeholder, akan kita isi
+        doc.deletePage(1);
+        doc.addPage();
+        drawPageHeader(pageNum);
+        drawPageFooter();
+
+        let curY = PAGE_HEADER_H + 2;
+        curY = drawTableHeader(curY);
+
+        let rowIdx = 0;
+        let isEven = false;
+
+        while (rowIdx < tableData.length) {
+            // Cek apakah muat di halaman ini
+            if (curY + ROW_H > PH - PAGE_FOOTER_H) {
+                // Halaman baru
+                doc.addPage();
+                pageNum++;
+                drawPageHeader(pageNum);
+                drawPageFooter();
+                curY = PAGE_HEADER_H + 2;
+                curY = drawTableHeader(curY);
+                isEven = false;
+            }
+
+            const row = tableData[rowIdx];
+            const isPiketRow = (row[0] || '').toLowerCase().includes('piket');
+
+            // Background baris
+            if (isEven) {
+                doc.setFillColor(249, 250, 251);
+                doc.rect(ML, curY, contentW, ROW_H, 'F');
+            }
+
+            // Border bawah baris
+            doc.setDrawColor(...C_BORDER);
+            doc.setLineWidth(0.2);
+            doc.line(ML, curY + ROW_H, ML + contentW, curY + ROW_H);
+
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(7.5);
+
+            let x = ML;
+            row.forEach((cell, ci) => {
+                const cellText = doc.splitTextToSize(cell, cW[ci] - 3);
+                const cellStr  = Array.isArray(cellText) ? cellText[0] : cellText;
+
+                // Warna teks kolom status
+                if (ci === 5) {
+                    const sl = cell.toLowerCase();
+                    if (sl.includes('terlambat') || sl === 'late') doc.setTextColor(...C_DANGER);
+                    else if (sl.includes('early bird'))            doc.setTextColor(...C_SUCCESS);
+                    else if (sl.includes('piket'))                 doc.setTextColor(...C_WARNING);
+                    else                                           doc.setTextColor(...C_PRIMARY);
+                    doc.setFont('helvetica', 'bold');
+                } else if (ci === 6) {
+                    doc.setTextColor(...C_SUCCESS);
+                    doc.setFont('helvetica', 'bold');
+                } else if (ci === 7) {
+                    doc.setTextColor(parseInt((row[7] || '0').replace(/[^0-9]/g, '')) > 0 ? C_DANGER[0] : C_MUTED[0],
+                                     parseInt((row[7] || '0').replace(/[^0-9]/g, '')) > 0 ? C_DANGER[1] : C_MUTED[1],
+                                     parseInt((row[7] || '0').replace(/[^0-9]/g, '')) > 0 ? C_DANGER[2] : C_MUTED[2]);
+                    doc.setFont('helvetica', 'bold');
+                } else if (ci === 0) {
+                    doc.setTextColor(...C_DARK);
+                    doc.setFont('helvetica', 'bold');
+                } else {
+                    doc.setTextColor(...C_DARK);
+                    doc.setFont('helvetica', 'normal');
+                }
+
+                doc.text(cellStr, x + 2, curY + ROW_H - 2.3);
+                x += cW[ci];
+            });
+
+            // Garis vertikal antar kolom
+            doc.setDrawColor(...C_BORDER);
+            doc.setLineWidth(0.1);
+            let xv = ML;
+            cW.forEach(w => { xv += w; doc.line(xv, curY, xv, curY + ROW_H); });
+
+            curY += ROW_H;
+            isEven = !isEven;
+            rowIdx++;
+        }
+
+        // Border luar tabel
+        doc.setDrawColor(...C_BORDER);
+        doc.setLineWidth(0.4);
+
+        // ── HALAMAN TERAKHIR: DASHBOARD RINGKASAN ──
+        doc.addPage();
+        pageNum++;
+        drawPageHeader(pageNum);
+        drawPageFooter();
+
+        let dy = PAGE_HEADER_H + 6;
+
+        // Judul dashboard
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(11);
+        doc.setTextColor(...C_PRIMARY);
+        doc.text('RINGKASAN EKSEKUTIF', PW / 2, dy, { align: 'center' });
+        dy += 8;
+
+        // ── 4 Kartu statistik ──
+        const cards = [
+            { label: 'Total Hadir\n(Kantor)',    value: totalHadir,                        color: C_SUCCESS },
+            { label: 'Total Piket',              value: totalPiket,                        color: C_WARNING },
+            { label: 'Total Terlambat',          value: totalTelat,                        color: C_DANGER  },
+            { label: 'Total Reward',             value: `Rp ${totalReward.toLocaleString('id-ID')}`, color: C_SUCCESS, small: true },
+            { label: 'Total Denda',              value: `Rp ${totalDenda.toLocaleString('id-ID')}`,  color: C_DANGER,  small: true },
+            { label: 'Total Record',             value: tableData.length,                  color: C_PRIMARY },
+        ];
+
+        const cardW = (contentW - 10) / 3;
+        const cardH = 22;
+        const cardRows = [[0,1,2],[3,4,5]];
+
+        cardRows.forEach((row, ri) => {
+            row.forEach((ci, cii) => {
+                const card = cards[ci];
+                const cx = ML + cii * (cardW + 5);
+                const cy = dy + ri * (cardH + 6);
+
+                // Shadow effect
+                doc.setFillColor(220, 220, 230);
+                doc.roundedRect(cx + 0.8, cy + 0.8, cardW, cardH, 3, 3, 'F');
+
+                // Kartu putih
+                doc.setFillColor(...C_WHITE);
+                doc.roundedRect(cx, cy, cardW, cardH, 3, 3, 'F');
+
+                // Aksen warna kiri
+                doc.setFillColor(...card.color);
+                doc.roundedRect(cx, cy, 3.5, cardH, 1.5, 1.5, 'F');
+
+                // Label
+                doc.setFont('helvetica', 'normal');
+                doc.setFontSize(7);
+                doc.setTextColor(...C_MUTED);
+                doc.text(card.label, cx + 7, cy + 7);
+
+                // Value
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(card.small ? 11 : 16);
+                doc.setTextColor(...card.color);
+                doc.text(String(card.value), cx + 7, cy + 17);
+            });
+        });
+
+        dy += cardRows.length * (cardH + 6) + 8;
+
+        // ── BAR CHART: Distribusi Status ──
+        const chartTitle = 'Distribusi Status Kehadiran';
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9);
+        doc.setTextColor(...C_DARK);
+        doc.text(chartTitle, ML, dy);
+        dy += 5;
+
+        const statusEntries = Object.entries(statusCount).sort((a, b) => b[1] - a[1]);
+        const maxVal = Math.max(...statusEntries.map(e => e[1]), 1);
+        const BAR_AREA_W = contentW * 0.55;
+        const BAR_AREA_H = Math.min(statusEntries.length * 11 + 5, 65);
+        const BAR_H = 7;
+        const BAR_GAP = 4;
+
+        const statusColors = {
+            'early bird'    : C_SUCCESS,
+            'on-time'       : C_PRIMARY,
+            'on time'       : C_PRIMARY,
+            'late'          : C_DANGER,
+            'terlambat'     : C_DANGER,
+            'piket tepat waktu' : C_WARNING,
+            'piket terlambat'   : [239, 68, 68],
+            'piket selesai'     : C_WARNING,
+        };
+
+        let barY = dy;
+        statusEntries.forEach(([status, count]) => {
+            const colorKey = status.toLowerCase();
+            const barColor = statusColors[colorKey] || C_PRIMARY;
+            const barLen = (count / maxVal) * (BAR_AREA_W - 55);
+
+            // Label status
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(7);
+            doc.setTextColor(...C_DARK);
+            const labelText = doc.splitTextToSize(status, 50);
+            doc.text(labelText[0], ML, barY + BAR_H - 1.5);
+
+            // Background bar
+            doc.setFillColor(...C_LIGHT);
+            doc.roundedRect(ML + 55, barY, BAR_AREA_W - 55, BAR_H, 1, 1, 'F');
+
+            // Bar isi
+            doc.setFillColor(...barColor);
+            if (barLen > 0) doc.roundedRect(ML + 55, barY, barLen, BAR_H, 1, 1, 'F');
+
+            // Angka di ujung bar
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(7.5);
+            doc.setTextColor(...barColor);
+            doc.text(String(count), ML + 55 + barLen + 2, barY + BAR_H - 1.5);
+
+            barY += BAR_H + BAR_GAP;
+        });
+
+        // ── PIE / DONUT indikator kehadiran (kanan chart) ──
+        const pieX = ML + BAR_AREA_W + 20;
+        const pieY = dy + 18;
+        const pieR = 22;
+
+        const hadirPct  = tableData.length > 0 ? Math.round((totalHadir / tableData.length) * 100) : 0;
+        const piketPct  = tableData.length > 0 ? Math.round((totalPiket / tableData.length) * 100) : 0;
+        const telatPct  = tableData.length > 0 ? Math.round((totalTelat / tableData.length) * 100) : 0;
+
+        // Lingkaran latar
+        doc.setFillColor(...C_LIGHT);
+        doc.circle(pieX, pieY, pieR, 'F');
+
+        // Arc hadir (approx dengan rect warna sebagai legend visual sederhana)
+        // Karena jsPDF tidak punya arc pie, kita gunakan gauge circle + legend
+        doc.setDrawColor(...C_SUCCESS);
+        doc.setLineWidth(4);
+        doc.circle(pieX, pieY, pieR - 4, 'S');
+
+        // Teks tengah
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(14);
+        doc.setTextColor(...C_SUCCESS);
+        doc.text(`${hadirPct}%`, pieX, pieY - 1, { align: 'center' });
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(6.5);
+        doc.setTextColor(...C_MUTED);
+        doc.text('Hadir', pieX, pieY + 5, { align: 'center' });
+
+        // Legend di bawah lingkaran
+        const legends = [
+            { label: `Hadir Kantor: ${totalHadir}`,  color: C_SUCCESS },
+            { label: `Piket: ${totalPiket}`,           color: C_WARNING },
+            { label: `Terlambat: ${totalTelat}`,       color: C_DANGER  },
+        ];
+        let legY = pieY + pieR + 6;
+        legends.forEach(leg => {
+            doc.setFillColor(...leg.color);
+            doc.rect(pieX - 18, legY - 3, 5, 3.5, 'F');
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(7);
+            doc.setTextColor(...C_DARK);
+            doc.text(leg.label, pieX - 11, legY);
+            legY += 6;
+        });
+
+        // ── Catatan di bawah dashboard ──
+        const noteY = PH - MB - 6;
+        doc.setDrawColor(...C_BORDER);
+        doc.setLineWidth(0.3);
+        doc.line(ML, noteY - 4, PW - MR, noteY - 4);
+        doc.setFont('helvetica', 'italic');
+        doc.setFontSize(7);
+        doc.setTextColor(...C_MUTED);
+        doc.text('* Laporan ini hanya menampilkan data yang sudah lengkap (absen masuk dan pulang). Data tanpa absen pulang tidak dihitung dalam rekap.', ML, noteY);
+
+        // ── Simpan ──
+        const filename = `Laporan_Absensi_${new Date().toISOString().split('T')[0]}.pdf`;
+        doc.save(filename);
+
+    } catch(err) {
+        console.error(err);
+        alert('Gagal membuat PDF: ' + err.message);
+    } finally {
         btn.innerHTML = origHtml;
         btn.disabled = false;
-    }).catch(err => {
-        alert("Gagal mencetak PDF: " + err.message);
-        btn.innerHTML = origHtml;
-        btn.disabled = false;
-    });
+    }
 }
 
 // --- UTILS ---
