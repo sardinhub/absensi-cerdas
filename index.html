@@ -207,6 +207,38 @@
                     </div>
                 </div>
 
+                <!-- Filter periode riwayat -->
+                <div class="glass-card" style="padding: 14px 18px; margin-bottom: 0;">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; align-items: center;">
+                        <select id="historyPeriodFilter" class="form-input" onchange="onHistoryPeriodChange()">
+                            <option value="daily">Hari Ini</option>
+                            <option value="weekly">Minggu Ini</option>
+                            <option value="monthly" selected>Bulan Ini</option>
+                            <option value="custom">Pilih Tanggal...</option>
+                        </select>
+                        <select id="historyEmployeeFilter" class="form-input" onchange="loadHistory()">
+                            <option value="all">Semua Staf</option>
+                        </select>
+                    </div>
+                    <div id="historyDatePickerRow" style="display: none; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 12px; background: var(--primary-light); border: 1px solid rgba(79,70,229,0.15); border-radius: 10px; padding: 12px 16px;">
+                        <i class="ri-calendar-search-line" style="color: var(--primary); font-size: 1.1rem; flex-shrink: 0;"></i>
+                        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; flex: 1;">
+                            <div style="display: flex; align-items: center; gap: 6px;">
+                                <span style="font-size: 0.8rem; font-weight: 600; color: var(--primary); white-space: nowrap;">Dari</span>
+                                <input type="date" id="historyDateStart" class="form-input" style="background: white; padding: 7px 10px; font-size: 0.85rem;" onchange="loadHistory()">
+                            </div>
+                            <span style="color: var(--primary); font-weight: 700; font-size: 0.9rem;">—</span>
+                            <div style="display: flex; align-items: center; gap: 6px;">
+                                <span style="font-size: 0.8rem; font-weight: 600; color: var(--primary); white-space: nowrap;">Sampai</span>
+                                <input type="date" id="historyDateEnd" class="form-input" style="background: white; padding: 7px 10px; font-size: 0.85rem;" onchange="loadHistory()">
+                            </div>
+                        </div>
+                        <button onclick="resetHistoryDateFilter()" style="background: none; border: 1px solid rgba(79,70,229,0.25); color: var(--primary); border-radius: 7px; padding: 6px 12px; font-size: 0.8rem; font-weight: 600; cursor: pointer; white-space: nowrap; display: flex; align-items: center; gap: 5px;">
+                            <i class="ri-refresh-line"></i> Reset
+                        </button>
+                    </div>
+                </div>
+
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
                     <div class="glass-card">
                         <h3 style="color: var(--success); margin-bottom: 15px; display: flex; align-items: center; gap: 8px;">
@@ -684,6 +716,6 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.12/dist/face-api.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-    <script src="app.js?v=24"></script>
+    <script src="app.js?v=25"></script>
 </body>
 </html>

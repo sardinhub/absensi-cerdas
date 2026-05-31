@@ -255,8 +255,45 @@ async function loadHistory(isAutoRefresh = false) {
     if (!isAutoRefresh) {
         bIn.innerHTML = '<tr><td colspan="4">Memuat...</td></tr>'; bOut.innerHTML = '<tr><td colspan="4">Memuat...</td></tr>';
     }
-    const { data } = await supabaseClient.from('attendance_logs').select('*, employees(full_name)').order('check_in_time', { ascending: false }).limit(100);
-    
+
+    const per = document.getElementById('historyPeriodFilter')?.value || 'monthly';
+    const empFilter = document.getElementById('historyEmployeeFilter')?.value || 'all';
+
+    let q = supabaseClient.from('attendance_logs').select('*, employees(full_name)');
+
+    if (empFilter !== 'all') q = q.eq('employee_id', empFilter);
+
+    const startOfToday = new Date(); startOfToday.setHours(0, 0, 0, 0);
+    if (per === 'daily') {
+        q = q.gte('check_in_time', startOfToday.toISOString());
+    } else if (per === 'weekly') {
+        const first = startOfToday.getDate() - startOfToday.getDay();
+        const startOfWeek = new Date(new Date().setDate(first)); startOfWeek.setHours(0, 0, 0, 0);
+        q = q.gte('check_in_time', startOfWeek.toISOString());
+    } else if (per === 'monthly') {
+        const startOfMonth = new Date(startOfToday.getFullYear(), startOfToday.getMonth(), 1);
+        q = q.gte('check_in_time', startOfMonth.toISOString());
+    } else if (per === 'custom') {
+        const startVal = document.getElementById('historyDateStart')?.value;
+        const endVal = document.getElementById('historyDateEnd')?.value;
+        if (startVal && endVal) {
+            const startOfRange = new Date(startVal + 'T00:00:00');
+            const endOfRange = new Date(endVal + 'T23:59:59');
+            if (startOfRange > endOfRange) {
+                bIn.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--danger);padding:20px;"><i class="ri-error-warning-line"></i> Tanggal awal tidak boleh melebihi tanggal akhir.</td></tr>';
+                bOut.innerHTML = '';
+                return;
+            }
+            q = q.gte('check_in_time', startOfRange.toISOString()).lte('check_in_time', endOfRange.toISOString());
+        } else if (startVal) {
+            q = q.gte('check_in_time', new Date(startVal + 'T00:00:00').toISOString());
+        } else {
+            q = q.gte('check_in_time', startOfToday.toISOString());
+        }
+    }
+
+    const { data } = await q.order('check_in_time', { ascending: false });
+
     let tempIn = '';
     let tempOut = '';
     window.activeLogs = window.activeLogs || {};
@@ -300,9 +337,38 @@ async function loadHistory(isAutoRefresh = false) {
             tempOut += `<tr><td><strong>${name}</strong></td><td>${time}</td><td>${noteText}</td><td>${action}</td></tr>`;
         }
     });
-    bIn.innerHTML = tempIn;
-    bOut.innerHTML = tempOut;
+    bIn.innerHTML = tempIn || '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:20px;">Tidak ada data</td></tr>';
+    bOut.innerHTML = tempOut || '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:20px;">Tidak ada data</td></tr>';
 }
+
+window.onHistoryPeriodChange = function() {
+    const per = document.getElementById('historyPeriodFilter')?.value;
+    const dateRow = document.getElementById('historyDatePickerRow');
+    const dateStart = document.getElementById('historyDateStart');
+    const dateEnd = document.getElementById('historyDateEnd');
+    if (per === 'custom') {
+        if (!dateStart.value || !dateEnd.value) {
+            const today = new Date();
+            const todayStr = today.toISOString().split('T')[0];
+            const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+            dateStart.value = startOfMonth.toISOString().split('T')[0];
+            dateEnd.value = todayStr;
+        }
+        dateRow.style.display = 'flex';
+        dateStart.focus();
+    } else {
+        dateRow.style.display = 'none';
+    }
+    loadHistory();
+};
+
+window.resetHistoryDateFilter = function() {
+    document.getElementById('historyPeriodFilter').value = 'monthly';
+    document.getElementById('historyDateStart').value = '';
+    document.getElementById('historyDateEnd').value = '';
+    document.getElementById('historyDatePickerRow').style.display = 'none';
+    loadHistory();
+};
 window.deleteLog = async (id) => { if (confirm("Hapus log ini?")) { await supabaseClient.from('attendance_logs').delete().eq('id', id); loadHistory(false); } };
 
 window.openManualAttendance = () => {
@@ -1475,10 +1541,13 @@ async function loadEmployees() {
     attendanceEmployeeSelect.innerHTML = '<option value="">-- Pilih Nama --</option>';
     if (piketEmployeeSelect) piketEmployeeSelect.innerHTML = '<option value="">-- Pilih Nama --</option>';
     document.getElementById('reportEmployeeFilter').innerHTML = '<option value="all">Semua Staf</option>';
+    const historyEmpFilter = document.getElementById('historyEmployeeFilter');
+    if (historyEmpFilter) historyEmpFilter.innerHTML = '<option value="all">Semua Staf</option>';
     allEmployees.forEach(e => { 
         attendanceEmployeeSelect.innerHTML += `<option value="${e.id}">${e.full_name}</option>`; 
         if (piketEmployeeSelect) piketEmployeeSelect.innerHTML += `<option value="${e.id}">${e.full_name}</option>`;
         document.getElementById('reportEmployeeFilter').innerHTML += `<option value="${e.id}">${e.full_name}</option>`; 
+        if (historyEmpFilter) historyEmpFilter.innerHTML += `<option value="${e.id}">${e.full_name}</option>`;
     });
 }
 function parseTime(t, baseDate = new Date()) { const n = baseDate, [h, m, s] = t.split(':'); return new Date(n.getFullYear(), n.getMonth(), n.getDate(), h, m, s || 0); }
