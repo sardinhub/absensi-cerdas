@@ -1585,9 +1585,7 @@ window.exportPDF = async function() {
 
         // ── HALAMAN 1: Tabel ──
         let pageNum = 1;
-        doc.addPage(); // placeholder, akan kita isi
-        doc.deletePage(1);
-        doc.addPage();
+        // doc.addPage() tidak diperlukan karena instance baru sudah memiliki 1 halaman secara default
         drawPageHeader(pageNum);
         drawPageFooter();
 
@@ -1770,11 +1768,17 @@ window.exportPDF = async function() {
             const barColor = statusColors[colorKey] || C_PRIMARY;
             const barLen = (count / maxVal) * (BAR_AREA_W - 55);
 
+            // Mapping label status
+            let displayStatus = status;
+            if (colorKey === 'early bird') displayStatus = 'Datang di awal waktu';
+            else if (colorKey === 'on-time' || colorKey === 'on time') displayStatus = 'Datang tepat waktu';
+            else if (colorKey === 'late') displayStatus = 'Terlambat';
+
             // Label status
             doc.setFont('helvetica', 'normal');
             doc.setFontSize(7);
             doc.setTextColor(...C_DARK);
-            const labelText = doc.splitTextToSize(status, 50);
+            const labelText = doc.splitTextToSize(displayStatus, 50);
             doc.text(labelText[0], ML, barY + BAR_H - 1.5);
 
             // Background bar
@@ -1795,7 +1799,7 @@ window.exportPDF = async function() {
         });
 
         // ── PIE / DONUT indikator kehadiran (kanan chart) ──
-        const pieX = ML + BAR_AREA_W + 20;
+        const pieX = ML + BAR_AREA_W + 50; // Digeser ke kanan agar tidak menutupi bar chart
         const pieY = dy + 18;
         const pieR = 22;
 
