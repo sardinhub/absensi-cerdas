@@ -395,15 +395,98 @@ window.resetHistoryDateFilter = function() {
 };
 window.deleteLog = async (id) => { if (confirm("Hapus log ini?")) { await supabaseClient.from('attendance_logs').delete().eq('id', id); loadHistory(false); } };
 
+// --- FILE ATTACHMENT UTILS ---
+function getBase64(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = error => reject(error);
+    });
+}
+
+window.toggleManualSubFields = function() {
+    const status = document.getElementById('manualStatus').value;
+    const attachmentGroup = document.getElementById('manualSakitAttachmentGroup');
+    const ijinGroup = document.getElementById('manualIjinTypeGroup');
+    
+    if (attachmentGroup) {
+        if (status === 'Sakit') attachmentGroup.classList.remove('hidden');
+        else attachmentGroup.classList.add('hidden');
+    }
+    if (ijinGroup) {
+        if (status === 'Ijin') ijinGroup.classList.remove('hidden');
+        else ijinGroup.classList.add('hidden');
+    }
+};
+
 window.openManualAttendance = () => {
     const select = document.getElementById('manualEmpId');
     select.innerHTML = allEmployees.map(e => `<option value="${e.id}">${e.full_name}</option>`).join('');
+    
+    // Reset form
+    document.getElementById('manualStatus').value = 'Sakit';
+    document.getElementById('manualNote').value = '';
+    const fileInput = document.getElementById('manualSakitAttachment');
+    if (fileInput) fileInput.value = '';
+    
+    toggleManualSubFields();
     document.getElementById('manualAttendanceModal').classList.remove('hidden');
 };
+
 window.saveManualAttendance = async () => {
-    const id = document.getElementById('manualEmpId').value, st = document.getElementById('manualStatus').value, nt = document.getElementById('manualNote').value;
-    const { error } = await supabaseClient.from('attendance_logs').insert([{ employee_id: id, check_in_time: new Date().toISOString(), status: st, type: 'manual', notes: nt, reward_amount: 0, penalty_amount: 0 }]);
-    if (!error) { alert("Sukses!"); closeModals(); loadHistory(false); }
+    const id = document.getElementById('manualEmpId').value;
+    const st = document.getElementById('manualStatus').value;
+    const notesVal = document.getElementById('manualNote').value;
+    
+    let finalStatus = st;
+    let penalty = 0;
+    let attachmentBase64 = '';
+    let attachmentName = '';
+    
+    if (st === 'Sakit') {
+        const fileInput = document.getElementById('manualSakitAttachment');
+        if (fileInput && fileInput.files && fileInput.files[0]) {
+            const file = fileInput.files[0];
+            attachmentName = file.name;
+            try {
+                attachmentBase64 = await getBase64(file);
+            } catch (e) {
+                console.error("Gagal membaca file lampiran:", e);
+                return alert("Gagal memproses file lampiran!");
+            }
+        }
+    } else if (st === 'Ijin') {
+        const ijinType = document.getElementById('manualIjinType').value;
+        finalStatus = `Ijin (${ijinType})`;
+        if (ijinType === 'Permintaan Sendiri') {
+            penalty = 50000;
+        }
+    }
+    
+    let finalNotes = notesVal;
+    if (attachmentBase64) {
+        finalNotes += `\n[attachment:${attachmentName}||${attachmentBase64}]`;
+    }
+    
+    const { error } = await supabaseClient.from('attendance_logs').insert([{ 
+        employee_id: id, 
+        check_in_time: new Date().toISOString(), 
+        status: finalStatus, 
+        type: 'manual', 
+        notes: finalNotes, 
+        reward_amount: 0, 
+        penalty_amount: penalty,
+        late_duration_minutes: 0
+    }]);
+    
+    if (!error) { 
+        alert("Data Absensi Manual Berhasil Disimpan!"); 
+        closeModals(); 
+        loadHistory(false); 
+    } else {
+        alert("Gagal menyimpan data manual: " + error.message);
+    }
 };
 
 // --- ADMIN OVERRIDE: BANTU ABSEN PULANG ---
@@ -609,16 +692,60 @@ window.openEditLog = async function(logId) {
     const statusSelect = document.getElementById('editLogStatus');
     const autoCalcAlert = document.getElementById('editLogAutoCalcAlert');
     
+    // Reset file input
+    const fileInput = document.getElementById('editLogSakitAttachment');
+    if (fileInput) fileInput.value = '';
+    
     if (log.type === 'manual') {
         statusGroup.classList.remove('hidden');
-        statusSelect.value = log.status || 'Sakit';
+        
+        let baseStatus = log.status || 'Sakit';
+        let ijinSubtype = 'Permintaan Sendiri';
+        
+        if (baseStatus.startsWith('Ijin')) {
+            if (baseStatus.includes('Tugas Kantor')) {
+                ijinSubtype = 'Tugas Kantor';
+            }
+            baseStatus = 'Ijin';
+        }
+        
+        statusSelect.value = baseStatus;
+        document.getElementById('editLogIjinType').value = ijinSubtype;
+        
+        // Cek pratinjau lampiran aktif
+        const currentAttachmentDiv = document.getElementById('editLogCurrentAttachment');
+        if (currentAttachmentDiv) {
+            const attachmentMatch = log.notes ? log.notes.match(/\[attachment:([^||]+)\|\|([^\]]+)\]/) : null;
+            if (attachmentMatch) {
+                currentAttachmentDiv.innerHTML = `📄 Lampiran aktif: <strong>${attachmentMatch[1]}</strong><br><small style="color:var(--text-light);">Biarkan kosong jika tidak ingin mengubah dokumen lampiran.</small>`;
+            } else {
+                currentAttachmentDiv.innerHTML = '';
+            }
+        }
+        
         autoCalcAlert.classList.add('hidden');
     } else {
         statusGroup.classList.add('hidden');
         autoCalcAlert.classList.remove('hidden');
     }
     
+    toggleEditLogSubFields();
     document.getElementById('editLogModal').classList.remove('hidden');
+};
+
+window.toggleEditLogSubFields = function() {
+    const status = document.getElementById('editLogStatus').value;
+    const attachmentGroup = document.getElementById('editLogSakitAttachmentGroup');
+    const ijinGroup = document.getElementById('editLogIjinTypeGroup');
+    
+    if (attachmentGroup) {
+        if (status === 'Sakit') attachmentGroup.classList.remove('hidden');
+        else attachmentGroup.classList.add('hidden');
+    }
+    if (ijinGroup) {
+        if (status === 'Ijin') ijinGroup.classList.remove('hidden');
+        else ijinGroup.classList.add('hidden');
+    }
 };
 
 window.saveEditLog = async function() {
@@ -626,6 +753,7 @@ window.saveEditLog = async function() {
     const logType = document.getElementById('editLogType').value;
     const timeVal = document.getElementById('editLogTime').value;
     const notesVal = document.getElementById('editLogNotes').value;
+    let finalNotes = notesVal;
     
     if (!timeVal) return alert("Pilih tanggal dan waktu!");
     
@@ -726,7 +854,44 @@ window.saveEditLog = async function() {
             console.error("Gagal kalkulasi piket pulang cepat:", e);
         }
     } else if (logType === 'manual') {
-        status = document.getElementById('editLogStatus').value;
+        const selectedStatus = document.getElementById('editLogStatus').value;
+        
+        if (selectedStatus === 'Sakit') {
+            status = 'Sakit';
+            penalty = 0;
+            
+            // Periksa file baru yang diunggah
+            const fileInput = document.getElementById('editLogSakitAttachment');
+            if (fileInput && fileInput.files && fileInput.files[0]) {
+                const file = fileInput.files[0];
+                try {
+                    const attachmentBase64 = await getBase64(file);
+                    let cleanNotes = notesVal.replace(/\[attachment:[^\]]+\]/g, '').trim();
+                    finalNotes = cleanNotes + `\n[attachment:${file.name}||${attachmentBase64}]`;
+                } catch (e) {
+                    console.error("Gagal memproses lampiran baru:", e);
+                    return alert("Gagal memproses file lampiran!");
+                }
+            } else {
+                // Pertahankan lampiran lama jika tidak ada file baru yang diunggah
+                const originalAttachmentMatch = log.notes ? log.notes.match(/\[attachment:[^\]]+\]/) : null;
+                if (originalAttachmentMatch) {
+                    let cleanNotes = notesVal.replace(/\[attachment:[^\]]+\]/g, '').trim();
+                    finalNotes = cleanNotes + `\n${originalAttachmentMatch[0]}`;
+                }
+            }
+        } else if (selectedStatus === 'Ijin') {
+            const ijinType = document.getElementById('editLogIjinType').value;
+            status = `Ijin (${ijinType})`;
+            penalty = (ijinType === 'Permintaan Sendiri') ? 50000 : 0;
+            // Hapus lampiran karena statusnya bukan Sakit
+            finalNotes = notesVal.replace(/\[attachment:[^\]]+\]/g, '').trim();
+        } else {
+            status = selectedStatus;
+            penalty = 0;
+            // Hapus lampiran karena statusnya bukan Sakit
+            finalNotes = notesVal.replace(/\[attachment:[^\]]+\]/g, '').trim();
+        }
     }
 
     try {
@@ -735,7 +900,7 @@ window.saveEditLog = async function() {
             .update({
                 check_in_time: newTime.toISOString(),
                 status,
-                notes: notesVal,
+                notes: finalNotes,
                 reward_amount: reward,
                 penalty_amount: penalty,
                 late_duration_minutes: lateMins
@@ -2361,17 +2526,53 @@ window.showHistoryDetail = async function(logId) {
             `;
         }
 
+        let displayNotes = log.notes || "";
+        let attachmentHtml = "";
+        
+        if (displayNotes && displayNotes !== "Absensi Piket") {
+            const attachmentMatch = displayNotes.match(/\[attachment:([^||]+)\|\|([^\]]+)\]/);
+            if (attachmentMatch) {
+                const filename = attachmentMatch[1];
+                const base64Data = attachmentMatch[2];
+                displayNotes = displayNotes.replace(/\[attachment:[^\]]+\]/g, '').trim();
+                
+                const isImage = base64Data.startsWith('data:image/');
+                
+                let previewHtml = "";
+                if (isImage) {
+                    previewHtml = `<img src="${base64Data}" style="max-width: 100%; max-height: 180px; border-radius: 8px; border: 1px solid var(--border-color); display: block; margin: 8px auto 0; box-shadow: var(--shadow-sm); cursor: pointer;" onclick="window.open('${base64Data}')" title="Klik untuk memperbesar">`;
+                } else {
+                    previewHtml = `
+                        <div style="text-align: center; margin-top: 8px;">
+                            <a href="${base64Data}" download="${filename}" class="btn btn-secondary" style="font-size:0.75rem; padding: 6px 12px; display: inline-flex; border-radius: 6px; height: auto;">
+                                <i class="ri-file-pdf-line"></i> Unduh Lampiran Surat Sakit
+                            </a>
+                        </div>
+                    `;
+                }
+                
+                attachmentHtml = `
+                    <div style="margin-top: 12px; border-top: 1px dashed var(--border-color); padding-top: 12px;">
+                        <span style="font-weight: 600; color: var(--text-muted); display: block; font-size: 0.8rem; margin-bottom: 4px;"><i class="ri-attachment-line"></i> Dokumen Lampiran</span>
+                        <div style="font-size: 0.8rem; color: var(--text-secondary); word-break: break-all;">File: <strong>${filename}</strong></div>
+                        ${previewHtml}
+                    </div>
+                `;
+            }
+        }
+
         let reasonHtml = "";
-        if (log.notes && log.notes !== "Absensi Piket") {
+        if (displayNotes && displayNotes !== "Absensi Piket") {
             reasonHtml = `
                 <div style="margin-top: 10px;">
                     <span style="font-weight: 600; color: var(--text-muted); display: block; font-size: 0.8rem; margin-bottom: 6px;">Catatan (Persetujuan Admin)</span>
                     <div style="background: #ffffff; border-left: 4px solid var(--primary); padding: 10px 12px; border-radius: 4px; font-style: italic; color: var(--text-secondary); font-size: 0.9rem; line-height: 1.4; word-break: break-word;">
-                        "${log.notes}"
+                        "${displayNotes}"
                     </div>
                 </div>
             `;
         }
+        reasonHtml += attachmentHtml;
 
         let piketToleranceHtml = "";
         if (isPiketStaff && log.type === 'in') {
@@ -2527,7 +2728,10 @@ window.loadPerforma = async function() {
     // Hitung kehadiran unik per staf per hari
     const attendanceMap = {}; // empId -> Set of dateStr
     (logs || []).forEach(log => {
-        if (log.type === 'manual' && ['Sakit', 'Ijin', 'Tugas Luar'].includes(log.status)) return; // tidak dihitung sebagai hadir
+        if (log.type === 'manual') {
+            const stStr = log.status || '';
+            if (stStr === 'Sakit' || stStr.includes('Permintaan Sendiri') || stStr === 'Tugas Luar') return; // tidak dihitung sebagai hadir
+        }
         const dateStr = new Date(log.check_in_time).toLocaleDateString('en-CA');
         if (!attendanceMap[log.employee_id]) attendanceMap[log.employee_id] = new Set();
         attendanceMap[log.employee_id].add(dateStr);

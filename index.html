@@ -583,10 +583,24 @@
                 </div>
                 <div id="editLogStatusGroup" class="hidden">
                     <label class="form-label">Status Kehadiran</label>
-                    <select id="editLogStatus" class="form-input">
+                    <select id="editLogStatus" class="form-input" onchange="toggleEditLogSubFields()">
                         <option value="Sakit">Sakit</option>
                         <option value="Ijin">Ijin</option>
                         <option value="Tugas Luar">Tugas Luar</option>
+                    </select>
+                </div>
+                <!-- Edit Sakit Attachment -->
+                <div id="editLogSakitAttachmentGroup" class="hidden">
+                    <label class="form-label"><i class="ri-attachment-line"></i> Lampiran Surat Keterangan Sakit (Gambar/PDF)</label>
+                    <input type="file" id="editLogSakitAttachment" class="form-input" accept="image/*,application/pdf">
+                    <div id="editLogCurrentAttachment" style="font-size:0.75rem; color:var(--text-muted); margin-top:4px;"></div>
+                </div>
+                <!-- Edit Ijin Subtype -->
+                <div id="editLogIjinTypeGroup" class="hidden">
+                    <label class="form-label">Tipe Ijin</label>
+                    <select id="editLogIjinType" class="form-input">
+                        <option value="Permintaan Sendiri">Permintaan Sendiri (Denda Rp50.000)</option>
+                        <option value="Tugas Kantor">Tugas Kantor (Bebas Denda)</option>
                     </select>
                 </div>
                 <div id="editLogAutoCalcAlert" style="background: rgba(79, 70, 229, 0.05); border: 1px solid rgba(79, 70, 229, 0.15); border-radius: 8px; padding: 10px; font-size: 0.75rem; color: var(--primary); line-height: 1.4;">
@@ -617,10 +631,23 @@
                 </div>
                 <div>
                     <label class="form-label">Keterangan Kehadiran</label>
-                    <select id="manualStatus" class="form-input">
+                    <select id="manualStatus" class="form-input" onchange="toggleManualSubFields()">
                         <option value="Sakit">Sakit</option>
                         <option value="Ijin">Ijin</option>
                         <option value="Tugas Luar">Tugas Luar</option>
+                    </select>
+                </div>
+                <!-- Sakit Attachment -->
+                <div id="manualSakitAttachmentGroup" class="hidden">
+                    <label class="form-label"><i class="ri-attachment-line"></i> Lampiran Surat Keterangan Sakit (Gambar/PDF)</label>
+                    <input type="file" id="manualSakitAttachment" class="form-input" accept="image/*,application/pdf">
+                </div>
+                <!-- Ijin Subtype -->
+                <div id="manualIjinTypeGroup" class="hidden">
+                    <label class="form-label">Tipe Ijin</label>
+                    <select id="manualIjinType" class="form-input">
+                        <option value="Permintaan Sendiri">Permintaan Sendiri (Denda Rp50.000)</option>
+                        <option value="Tugas Kantor">Tugas Kantor (Bebas Denda)</option>
                     </select>
                 </div>
                 <div>
