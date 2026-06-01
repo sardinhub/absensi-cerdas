@@ -813,7 +813,8 @@ window.handleAttendance = async function(type) {
             
             if (dist > CONFIG.allowedRadiusMeters) {
                 resetButtons();
-                alert(`Anda tidak dalam area kantor, segera masuk ke area kantor untuk bisa melanjutkan Absensi Anda.`);
+                playAudio('luar_area');
+                setTimeout(() => alert(`Anda tidak dalam area kantor, segera masuk ke area kantor untuk bisa melanjutkan Absensi Anda.`), 100);
                 return;
             }
         } catch (err) {
@@ -919,7 +920,8 @@ function playAudio(type) {
         'in': 'audio/masuk.mp3',
         'out': 'audio/pulang.mp3',
         'piket_in': 'audio/piket_masuk.mp3',
-        'piket_out': 'audio/piket_pulang.mp3'
+        'piket_out': 'audio/piket_pulang.mp3',
+        'luar_area': 'audio/luar_area.mp3'
     };
     
     if (audioMap[type]) {
@@ -1154,7 +1156,8 @@ window.handlePiketAttendance = async function(type) {
             
             if (dist > CONFIG.allowedRadiusMeters) {
                 resetButtons();
-                alert(`Anda tidak dalam area kantor, segera masuk ke area kantor untuk bisa melakukan Absensi Piket.`);
+                playAudio('luar_area');
+                setTimeout(() => alert(`Anda tidak dalam area kantor, segera masuk ke area kantor untuk bisa melakukan Absensi Piket.`), 100);
                 return;
             }
         } catch (err) {
