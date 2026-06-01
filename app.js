@@ -44,6 +44,13 @@ document.addEventListener('DOMContentLoaded', () => {
     loadEmployees();
     checkSystemStatus();
 
+    // Set default bulan di performaMonthSelect ke bulan saat ini
+    const msEl = document.getElementById('performaMonthSelect');
+    if (msEl && !msEl.value) {
+        const now = new Date();
+        msEl.value = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+    }
+
     // Mobile Menu Toggle
     const menuBtn = document.getElementById('menuToggle');
     const sidebar = document.querySelector('.sidebar');
@@ -86,7 +93,13 @@ function updateTime() {
     timeEl.textContent = now.toLocaleTimeString('id-ID', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
 
-function checkSystemStatus() { if (new Date().getDay() === 0) document.getElementById('offlineOverlay')?.classList.remove('hidden'); }
+async function checkSystemStatus() {
+    const now = new Date();
+    const isHoliday = await checkIfNationalHoliday(now);
+    if (now.getDay() === 0 || isHoliday) {
+        document.getElementById('offlineOverlay')?.classList.remove('hidden');
+    }
+}
 
 function getSchedule(dayIndex) {
     if (dayIndex === 0) return null; // Minggu libur
@@ -164,32 +177,24 @@ window.switchTab = async function(tab) {
         register: ["Manajemen Staf", "Kelola data dan wajah staf"], 
         history: ["Riwayat Aktivitas", "Raw logs aktivitas staf"], 
         report: ["Laporan Kehadiran", "Rekapitulasi performa staf"], 
-        settings: ["Pengaturan", "Kelola sistem"] 
+        settings: ["Pengaturan", "Kelola sistem"],
+        performa: ["Performa Staf", "Dashboard kehadiran bulanan per staf"]
     };
-    [document.getElementById('tabCheckIn'), document.getElementById('tabPiket'), document.getElementById('tabEmployees'), document.getElementById('tabHistory'), document.getElementById('tabReport'), document.getElementById('tabSettings')].forEach(t => t?.classList.remove('active'));
-    [document.getElementById('checkInGrid'), document.getElementById('piketGrid'), document.getElementById('registerSection'), document.getElementById('historySection'), document.getElementById('reportSection'), document.getElementById('settingsSection')].forEach(s => s?.classList.add('hidden'));
+    [document.getElementById('tabCheckIn'), document.getElementById('tabPiket'), document.getElementById('tabEmployees'), document.getElementById('tabHistory'), document.getElementById('tabReport'), document.getElementById('tabSettings'), document.getElementById('tabPerforma')].forEach(t => t?.classList.remove('active'));
+    [document.getElementById('checkInGrid'), document.getElementById('piketGrid'), document.getElementById('registerSection'), document.getElementById('historySection'), document.getElementById('reportSection'), document.getElementById('settingsSection'), document.getElementById('performaSection')].forEach(s => s?.classList.add('hidden'));
     stopAllCameras();
-    const activeTab = document.getElementById(
-        tab === 'checkin' ? 'tabCheckIn' : 
-        tab === 'piket' ? 'tabPiket' : 
-        tab === 'register' ? 'tabEmployees' : 
-        tab === 'history' ? 'tabHistory' : 
-        tab === 'report' ? 'tabReport' : 'tabSettings'
-    );
-    const activeSec = document.getElementById(
-        tab === 'checkin' ? 'checkInGrid' : 
-        tab === 'piket' ? 'piketGrid' : 
-        tab === 'register' ? 'registerSection' : 
-        tab === 'history' ? 'historySection' : 
-        tab === 'report' ? 'reportSection' : 'settingsSection'
-    );
+    const tabIdMap = { checkin:'tabCheckIn', piket:'tabPiket', register:'tabEmployees', history:'tabHistory', report:'tabReport', settings:'tabSettings', performa:'tabPerforma' };
+    const secIdMap = { checkin:'checkInGrid', piket:'piketGrid', register:'registerSection', history:'historySection', report:'reportSection', settings:'settingsSection', performa:'performaSection' };
+    const activeTab = document.getElementById(tabIdMap[tab] || 'tabSettings');
+    const activeSec = document.getElementById(secIdMap[tab] || 'settingsSection');
     activeTab?.classList.add('active'); activeSec?.classList.remove('hidden');
-    document.getElementById('mainTitle').textContent = titles[tab][0];
-    document.getElementById('mainSubtitle').textContent = titles[tab][1];
+    document.getElementById('mainTitle').textContent = titles[tab]?.[0] || '';
+    document.getElementById('mainSubtitle').textContent = titles[tab]?.[1] || '';
     if (tab === 'piket') checkPiketStatus();
     if (tab === 'register') loadStaffTable();
     if (tab === 'history') loadHistory(false);
     if (tab === 'report') loadReport(false);
+    if (tab === 'performa') loadPerforma();
 };
 
 function stopAllCameras() {
@@ -1326,6 +1331,8 @@ window.resetDateFilter = function() {
 };
 
 async function loadReport(isAutoRefresh = false) {
+    // Auto-tandai staf tidak masuk (hanya saat akses manual, bukan auto-refresh)
+    if (!isAutoRefresh) checkAndInsertAbsentStaff();
     const emp = document.getElementById('reportEmployeeFilter')?.value || 'all';
     const per = document.getElementById('reportPeriodFilter')?.value || 'daily';
     const typeFilter = document.getElementById('reportTypeFilter')?.value || 'all';
@@ -1339,9 +1346,12 @@ async function loadReport(isAutoRefresh = false) {
     
     // Filter by type
     if (typeFilter === 'kantor') {
-        q = q.in('type', ['in', 'out', 'manual']);
+        q = q.in('type', ['in', 'out', 'manual', 'absent']);
     } else if (typeFilter === 'piket') {
         q = q.in('type', ['piket_in', 'piket_out']);
+    } else {
+        // 'all': sertakan semua termasuk absent
+        q = q.in('type', ['in', 'out', 'manual', 'absent', 'piket_in', 'piket_out']);
     }
     
     const startOfToday = new Date(); startOfToday.setHours(0,0,0,0);
@@ -1413,6 +1423,15 @@ async function loadReport(isAutoRefresh = false) {
             grouped[key].logId = log.id;
             window.activeLogs[log.id] = log;
         }
+        else if (log.type === 'absent') {
+            grouped[key].status = 'Tidak Masuk Kantor';
+            grouped[key].in = '—';
+            grouped[key].out = '—';
+            grouped[key].isComplete = true;
+            grouped[key].isAbsent = true;
+            grouped[key].logId = log.id;
+            window.activeLogs[log.id] = log;
+        }
         else if (log.type === 'piket_in') { 
             grouped[key].in = time; 
             grouped[key].late = log.late_duration_minutes || 0; 
@@ -1423,17 +1442,20 @@ async function loadReport(isAutoRefresh = false) {
         else if (log.type === 'piket_out') { grouped[key].out = time; grouped[key].isComplete = true; }
     });
     const rows = Object.values(grouped).filter(r => r.isComplete).reverse();
-    let trs = '', totalHadir = 0, totalTelat = 0, totalPiket = 0;
+    let trs = '', totalHadir = 0, totalTelat = 0, totalPiket = 0, totalAbsen = 0;
     
     rows.forEach(r => {
         if (r.isPiket) totalPiket++;
+        else if (r.isAbsent) totalAbsen++;
         else totalHadir++;
 
         if (r.late > 0) totalTelat++;
 
         let badgeStyle = r.isPiket ? 'style="background: rgba(217, 119, 6, 0.1); color: var(--warning); border: 1px solid rgba(217, 119, 6, 0.15); cursor: pointer;"' : '';
         if (!r.isPiket) {
-            if (r.status === 'Sakit') {
+            if (r.isAbsent || r.status === 'Tidak Masuk Kantor') {
+                badgeStyle = 'style="background: rgba(127,17,224,0.1); color: #7f11e0; border: 1px solid rgba(127,17,224,0.2); cursor: pointer;"';
+            } else if (r.status === 'Sakit') {
                 badgeStyle = 'style="background: rgba(220, 38, 38, 0.1); color: var(--danger); border: 1px solid rgba(220, 38, 38, 0.15); cursor: pointer;"';
             } else if (r.status === 'Ijin') {
                 badgeStyle = 'style="background: rgba(217, 119, 6, 0.1); color: var(--warning); border: 1px solid rgba(217, 119, 6, 0.15); cursor: pointer;"';
@@ -1472,9 +1494,13 @@ async function loadReport(isAutoRefresh = false) {
                 <div style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase;">Total Piket</div>
                 <div style="font-size: 1.5rem; font-weight: 800; color: var(--warning); margin-top: 5px;">${totalPiket}</div>
             </div>
-            <div style="flex: 1; min-width: 120px; text-align: center;">
+            <div style="flex: 1; min-width: 120px; text-align: center; border-right: 1px solid var(--border-light);">
                 <div style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase;">Total Telat</div>
                 <div style="font-size: 1.5rem; font-weight: 800; color: var(--danger); margin-top: 5px;">${totalTelat}</div>
+            </div>
+            <div style="flex: 1; min-width: 120px; text-align: center;">
+                <div style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase;">Tidak Masuk</div>
+                <div style="font-size: 1.5rem; font-weight: 800; color: #7f11e0; margin-top: 5px;">${totalAbsen}</div>
             </div>
         </div>`;
     }
@@ -1950,6 +1976,9 @@ async function loadSettings() {
         CONFIG.piketStartTime = data.piket_start_time || '17:00:00';
         CONFIG.piketEndTime = data.piket_end_time || '21:00:00';
 
+        // Toggle Piket
+        CONFIG.piketEnabled = data.piket_enabled !== false; // default true jika null
+
         if (document.getElementById('setAdminPass')) {
             document.getElementById('setAdminPass').value = data.admin_password;
             document.getElementById('setReward').value = data.early_bird_reward;
@@ -1972,9 +2001,33 @@ async function loadSettings() {
                 document.getElementById('setPiketStart').value = (CONFIG.piketStartTime || '').substring(0, 5);
                 document.getElementById('setPiketEnd').value = (CONFIG.piketEndTime || '').substring(0, 5);
             }
+
+            // Toggle piket UI binding
+            const setPiketEnabled = document.getElementById('setPiketEnabled');
+            if (setPiketEnabled) setPiketEnabled.checked = CONFIG.piketEnabled;
         }
+        applyPiketFeatureToggle();
     }
 }
+
+function applyPiketFeatureToggle() {
+    const isEnabled = CONFIG.piketEnabled !== false;
+    const piketTab = document.getElementById('tabPiket');
+    const overlay = document.getElementById('piketDisabledOverlay');
+    if (piketTab) {
+        piketTab.style.opacity = isEnabled ? '' : '0.4';
+        piketTab.style.pointerEvents = isEnabled ? '' : 'none';
+        piketTab.title = isEnabled ? '' : 'Fitur Piket dinonaktifkan oleh Admin';
+    }
+    if (overlay) {
+        isEnabled ? overlay.classList.add('hidden') : overlay.classList.remove('hidden');
+    }
+}
+
+window.togglePiketEnabled = function(checked) {
+    CONFIG.piketEnabled = checked;
+    applyPiketFeatureToggle();
+};
 window.saveSettings = async function() {
     const p = document.getElementById('setAdminPass').value, r = parseInt(document.getElementById('setReward').value), d = parseInt(document.getElementById('setPenalty').value), l = parseInt(document.getElementById('setEarlyLimit').value), m = parseInt(document.getElementById('setMaxPenalty').value);
     const geo = document.getElementById('setEnableGeofencing').checked;
@@ -2012,7 +2065,8 @@ window.saveSettings = async function() {
         saturday_start_time: wInSaturday,
         saturday_end_time: wOutSaturday,
         piket_start_time: pStart,
-        piket_end_time: pEnd
+        piket_end_time: pEnd,
+        piket_enabled: document.getElementById('setPiketEnabled')?.checked ?? true
     };
     
     let error;
@@ -2302,4 +2356,177 @@ window.showHistoryDetail = async function(logId) {
 
     document.getElementById('attendanceDetailContent').innerHTML = detailsHtml;
     document.getElementById('attendanceDetailModal').classList.remove('hidden');
+};
+
+// ============================================================
+// --- LIBUR NASIONAL & AUTO ABSEN ---
+// ============================================================
+
+async function checkIfNationalHoliday(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const cacheKey = `holidays_${year}_${month}`;
+    let holidays = null;
+    try { holidays = JSON.parse(localStorage.getItem(cacheKey)); } catch(e) {}
+    if (!holidays) {
+        try {
+            const res = await fetch(`https://api-harilibur.vercel.app/api?month=${month}&year=${year}`);
+            if (res.ok) {
+                holidays = await res.json();
+                localStorage.setItem(cacheKey, JSON.stringify(holidays));
+            } else { return false; }
+        } catch(e) { return false; }
+    }
+    const dateStr = date.toLocaleDateString('en-CA'); // YYYY-MM-DD
+    return Array.isArray(holidays) && holidays.some(h => h.holiday_date === dateStr && h.is_national_holiday);
+}
+
+async function checkAndInsertAbsentStaff() {
+    const now = new Date();
+    const dayIndex = now.getDay();
+    if (dayIndex === 0) return; // Minggu libur
+    const isHoliday = await checkIfNationalHoliday(now);
+    if (isHoliday) return;
+
+    const schedule = getSchedule(dayIndex);
+    if (!schedule) return;
+
+    const workStart = parseTime(schedule.in);
+    const cutoffTime = new Date(workStart.getTime() + 60 * 60000); // +1 jam toleransi
+    if (now < cutoffTime) return; // Belum lewat batas, jangan insert dulu
+
+    const todayStr = now.toLocaleDateString('en-CA');
+    const startOfDay = new Date(todayStr + 'T00:00:00');
+    const endOfDay   = new Date(todayStr + 'T23:59:59');
+
+    const { data: todayLogs } = await supabaseClient
+        .from('attendance_logs')
+        .select('employee_id, type')
+        .in('type', ['in', 'absent', 'manual'])
+        .gte('check_in_time', startOfDay.toISOString())
+        .lte('check_in_time', endOfDay.toISOString());
+
+    const presentIds = new Set((todayLogs || []).map(l => l.employee_id));
+    const absentStaff = allEmployees.filter(e => !presentIds.has(e.id));
+
+    for (const emp of absentStaff) {
+        await supabaseClient.from('attendance_logs').insert([{
+            employee_id: emp.id,
+            check_in_time: cutoffTime.toISOString(),
+            type: 'absent',
+            status: 'Tidak Masuk Kantor',
+            reward_amount: 0,
+            penalty_amount: 0,
+            late_duration_minutes: 0,
+            notes: 'Auto-generated: Tidak hadir melewati batas toleransi'
+        }]);
+    }
+    console.log(`[Auto Absen] ${absentStaff.length} staf ditandai Tidak Masuk Kantor.`);
+}
+
+// ============================================================
+// --- PERFORMA KEHADIRAN BULANAN ---
+// ============================================================
+
+async function getEffectiveWorkDays(year, month) {
+    // month: 0-indexed (0=Jan, 11=Dec)
+    const days = [];
+    const date = new Date(year, month, 1);
+    while (date.getMonth() === month) {
+        const d = date.getDay();
+        if (d !== 0) { // Bukan Minggu
+            const isHoliday = await checkIfNationalHoliday(new Date(date));
+            if (!isHoliday) days.push(new Date(date));
+        }
+        date.setDate(date.getDate() + 1);
+    }
+    return days;
+}
+
+window.loadPerforma = async function() {
+    const container = document.getElementById('performaCards');
+    const infoEl = document.getElementById('performaInfo');
+    if (!container) return;
+    container.innerHTML = '<div style="text-align:center; padding:40px; color:var(--text-muted);"><span class="btn-spinner" style="display:inline-block; width:24px; height:24px; border-width:3px;"></span><p style="margin-top:12px;">Menghitung performa...</p></div>';
+
+    const monthSelect = document.getElementById('performaMonthSelect');
+    const selVal = monthSelect?.value || `${new Date().getFullYear()}-${String(new Date().getMonth()+1).padStart(2,'0')}`;
+    const [year, month] = selVal.split('-').map(Number);
+
+    // Hitung hari kerja efektif bulan ini
+    const workDays = await getEffectiveWorkDays(year, month - 1);
+    const totalWorkDays = workDays.length;
+    if (infoEl) infoEl.textContent = `Hari kerja efektif ${new Date(year, month-1).toLocaleString('id-ID',{month:'long',year:'numeric'})}: ${totalWorkDays} hari`;
+
+    const startOfMonth = new Date(year, month - 1, 1);
+    const endOfMonth   = new Date(year, month, 0, 23, 59, 59);
+
+    const { data: logs } = await supabaseClient
+        .from('attendance_logs')
+        .select('employee_id, type, check_in_time')
+        .in('type', ['in', 'manual'])
+        .gte('check_in_time', startOfMonth.toISOString())
+        .lte('check_in_time', endOfMonth.toISOString());
+
+    // Hitung kehadiran unik per staf per hari
+    const attendanceMap = {}; // empId -> Set of dateStr
+    (logs || []).forEach(log => {
+        if (log.type === 'manual' && ['Sakit', 'Ijin', 'Tugas Luar'].includes(log.status)) return; // tidak dihitung sebagai hadir
+        const dateStr = new Date(log.check_in_time).toLocaleDateString('en-CA');
+        if (!attendanceMap[log.employee_id]) attendanceMap[log.employee_id] = new Set();
+        attendanceMap[log.employee_id].add(dateStr);
+    });
+
+    if (allEmployees.length === 0) {
+        container.innerHTML = '<p style="text-align:center; color:var(--text-muted);">Data staf belum tersedia.</p>';
+        return;
+    }
+
+    const getBadge = (pct) => {
+        if (pct >= 80) return { icon: '🏆', label: 'Kehadiran Sangat Baik', color: '#059669', bg: 'rgba(5,150,105,0.08)', border: 'rgba(5,150,105,0.2)' };
+        if (pct >= 60) return { icon: '⚠️', label: 'Kehadiran Cukup', color: '#d97706', bg: 'rgba(217,119,6,0.08)', border: 'rgba(217,119,6,0.2)' };
+        if (pct >= 40) return { icon: '🔴', label: 'Kehadiran Kurang', color: '#dc2626', bg: 'rgba(220,38,38,0.08)', border: 'rgba(220,38,38,0.2)' };
+        return { icon: '❌', label: 'Kehadiran Sangat Kurang', color: '#7f1d1d', bg: 'rgba(127,29,29,0.08)', border: 'rgba(127,29,29,0.2)' };
+    };
+
+    let html = '';
+    const sortedEmps = [...allEmployees].sort((a, b) => {
+        const pctA = totalWorkDays > 0 ? (attendanceMap[a.id]?.size || 0) / totalWorkDays * 100 : 0;
+        const pctB = totalWorkDays > 0 ? (attendanceMap[b.id]?.size || 0) / totalWorkDays * 100 : 0;
+        return pctB - pctA;
+    });
+
+    sortedEmps.forEach((emp, idx) => {
+        const hadirCount = attendanceMap[emp.id]?.size || 0;
+        const pct = totalWorkDays > 0 ? Math.round((hadirCount / totalWorkDays) * 100) : 0;
+        const badge = getBadge(pct);
+        const initials = emp.full_name.split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase();
+        const rank = idx + 1;
+        html += `
+        <div style="background: white; border: 1px solid var(--border-light); border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 14px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); transition: transform 0.2s;" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform=''">
+            <div style="display: flex; align-items: center; gap: 14px;">
+                <div style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); min-width:22px;">#${rank}</div>
+                <div style="width: 44px; height: 44px; border-radius: 50%; background: var(--primary-light); color: var(--primary); font-weight: 700; font-size: 1rem; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">${initials}</div>
+                <div style="flex: 1; min-width: 0;">
+                    <div style="font-weight: 700; color: var(--text-main); font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${emp.full_name}</div>
+                    <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 2px;">${emp.department || emp.position || 'Staf'}</div>
+                </div>
+                <div style="font-size: 1.4rem; flex-shrink: 0;">${badge.icon}</div>
+            </div>
+            <div>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 7px;">
+                    <span style="font-size: 0.78rem; color: var(--text-muted);">${hadirCount} / ${totalWorkDays} hari hadir</span>
+                    <span style="font-weight: 800; font-size: 1.05rem; color: ${badge.color};">${pct}%</span>
+                </div>
+                <div style="height: 8px; background: var(--bg-input); border-radius: 99px; overflow: hidden;">
+                    <div style="height: 100%; width: ${pct}%; background: ${badge.color}; border-radius: 99px; transition: width 0.8s ease;"></div>
+                </div>
+            </div>
+            <div style="background: ${badge.bg}; border: 1px solid ${badge.border}; border-radius: 8px; padding: 8px 12px; text-align: center;">
+                <span style="font-size: 0.8rem; font-weight: 600; color: ${badge.color};">${badge.label}</span>
+            </div>
+        </div>`;
+    });
+
+    container.innerHTML = html || '<p style="text-align:center; color:var(--text-muted);">Tidak ada data staf.</p>';
 };

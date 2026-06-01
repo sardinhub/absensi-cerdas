@@ -24,6 +24,7 @@
                 <li id="tabEmployees" class="admin-only"><a href="javascript:void(0)" onclick="switchTab('register')"><i class="ri-group-line"></i> Manajemen Staf</a></li>
                 <li id="tabHistory" class="admin-only"><a href="javascript:void(0)" onclick="switchTab('history')"><i class="ri-history-line"></i> Riwayat</a></li>
                 <li id="tabReport" class="admin-only"><a href="javascript:void(0)" onclick="switchTab('report')"><i class="ri-file-chart-line"></i> Laporan</a></li>
+                <li id="tabPerforma" class="admin-only"><a href="javascript:void(0)" onclick="switchTab('performa')"><i class="ri-bar-chart-grouped-line"></i> Performa Staf</a></li>
                 <li id="tabSettings" class="admin-only"><a href="javascript:void(0)" onclick="switchTab('settings')"><i class="ri-settings-4-line"></i> Pengaturan</a></li>
             </ul>
             <div style="padding: 16px 12px; border-top: 1px solid var(--border-light);">
@@ -90,7 +91,7 @@
             </div>
 
             <!-- Tab: Absensi Piket -->
-            <div id="piketGrid" class="hidden">
+            <div id="piketGrid" class="hidden" style="position: relative;">
                 <div class="grid-layout">
                     <section class="scan-section glass-card" style="text-align: center;">
                         <div style="text-align: left; margin-bottom: 16px;">
@@ -110,6 +111,12 @@
                             <button id="btnPiketPulang" class="btn btn-secondary" onclick="handlePiketAttendance('out')" disabled style="background: var(--danger-light); color: var(--danger); border: 1px solid rgba(220, 38, 38, 0.15); padding: 14px;">
                                 <i class="ri-logout-box-line"></i> PULANG PIKET
                             </button>
+                        </div>
+                        <!-- Overlay piket disabled -->
+                        <div id="piketDisabledOverlay" class="hidden" style="position:absolute; inset:0; background:rgba(255,255,255,0.92); border-radius:16px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; z-index:10;">
+                            <i class="ri-shield-cross-line" style="font-size:3rem; color:var(--danger);"></i>
+                            <p style="font-size:1rem; font-weight:700; color:var(--danger); text-align:center; margin:0;">Fitur Absensi Piket<br>Sedang Dinonaktifkan oleh Admin</p>
+                            <p style="font-size:0.8rem; color:var(--text-muted); text-align:center; margin:0;">Hubungi admin untuk informasi lebih lanjut.</p>
                         </div>
                     </section>
                     <section class="results-section">
@@ -427,6 +434,20 @@
                             </div>
                         </div>
 
+                        <!-- Group: Toggle Piket -->
+                        <div style="background: var(--bg-input); padding: 20px; border-radius: 12px; border: 1px solid var(--border-color);">
+                            <div style="display: flex; align-items: center; justify-content: space-between;">
+                                <div>
+                                    <label class="form-label" style="margin:0;"><i class="ri-shield-flash-line"></i> Fitur Absensi Piket</label>
+                                    <small style="color: var(--text-light); font-size: 0.7rem; display:block; margin-top:4px;">Nonaktifkan jika tidak ada jadwal piket.</small>
+                                </div>
+                                <label style="display:flex; align-items:center; gap:8px; cursor:pointer; flex-shrink:0;">
+                                    <input type="checkbox" id="setPiketEnabled" onchange="togglePiketEnabled(this.checked)" style="width:16px; height:16px;" checked>
+                                    <span style="font-size:0.8rem; font-weight:600;">Aktifkan</span>
+                                </label>
+                            </div>
+                        </div>
+
                         <!-- Group: Lokasi (Geofencing) -->
                         <div style="background: var(--bg-input); padding: 20px; border-radius: 12px; border: 1px solid var(--border-color);">
                             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;">
@@ -456,6 +477,41 @@
                         <button class="btn btn-primary" onclick="saveSettings()" style="width: 100%; height: 50px; font-weight: 600; font-size: 0.95rem; border-radius: 10px;">
                             <i class="ri-save-3-fill"></i> SIMPAN PERUBAHAN
                         </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Tab: Performa Staf -->
+            <section id="performaSection" class="hidden">
+                <div style="max-width: 960px; margin: 0 auto;">
+                    <!-- Header -->
+                    <div class="glass-card" style="margin-bottom: 20px; padding: 20px;">
+                        <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+                            <div style="width:40px; height:40px; border-radius:10px; background:var(--primary-light); display:flex; align-items:center; justify-content:center; color:var(--primary); font-size:1.2rem; flex-shrink:0;">
+                                <i class="ri-bar-chart-grouped-line"></i>
+                            </div>
+                            <div style="flex:1;">
+                                <h2 style="margin:0;">Performa Kehadiran Staf</h2>
+                                <p id="performaInfo" style="color:var(--text-muted); font-size:0.8rem; margin-top:2px;">Pilih bulan dan klik Hitung.</p>
+                            </div>
+                            <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                                <input type="month" id="performaMonthSelect" class="form-input" style="padding:8px 12px; background:white; max-width:180px;">
+                                <button class="btn btn-primary" onclick="loadPerforma()" style="padding:10px 20px; border-radius:10px;">
+                                    <i class="ri-refresh-line"></i> Hitung Performa
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Legend -->
+                    <div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:20px;">
+                        <span style="background:rgba(5,150,105,0.1); color:#059669; border:1px solid rgba(5,150,105,0.2); padding:6px 14px; border-radius:99px; font-size:0.8rem; font-weight:600;">🏆 ≥ 80% Sangat Baik</span>
+                        <span style="background:rgba(217,119,6,0.1); color:#d97706; border:1px solid rgba(217,119,6,0.2); padding:6px 14px; border-radius:99px; font-size:0.8rem; font-weight:600;">⚠️ 60–79% Cukup</span>
+                        <span style="background:rgba(220,38,38,0.1); color:#dc2626; border:1px solid rgba(220,38,38,0.2); padding:6px 14px; border-radius:99px; font-size:0.8rem; font-weight:600;">🔴 40–59% Kurang</span>
+                        <span style="background:rgba(127,29,29,0.1); color:#7f1d1d; border:1px solid rgba(127,29,29,0.2); padding:6px 14px; border-radius:99px; font-size:0.8rem; font-weight:600;">❌ &lt;40% Sangat Kurang</span>
+                    </div>
+                    <!-- Grid Kartu Staf -->
+                    <div id="performaCards" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:16px;">
+                        <p style="color:var(--text-muted); text-align:center; padding:40px;">Pilih bulan dan klik <strong>Hitung Performa</strong> untuk melihat data.</p>
                     </div>
                 </div>
             </section>
@@ -717,6 +773,6 @@
     <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.12/dist/face-api.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-    <script src="app.js?v=31"></script>
+    <script src="app.js?v=32"></script>
 </body>
 </html>
