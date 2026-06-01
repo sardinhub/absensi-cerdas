@@ -448,6 +448,28 @@
                             </div>
                         </div>
 
+                        <!-- Group: Kalender Hari Libur -->
+                        <div style="background: var(--bg-input); padding: 20px; border-radius: 12px; border: 1px solid var(--border-color);">
+                            <label class="form-label" style="margin-bottom: 8px;"><i class="ri-calendar-event-line"></i> Kalender Hari Libur & Overrides</label>
+                            <small style="color: var(--text-light); font-size: 0.75rem; display: block; margin-bottom: 14px; line-height: 1.45;">
+                                Klik tanggal pada kalender untuk menetapkan/membatalkan libur.
+                                <br><span style="color: #dc2626; font-weight:700;">Merah</span> = Hari Libur (Tidak Masuk Kantor dinonaktifkan).
+                                <br><span style="color: #059669; font-weight:700;">Hijau</span> = Hari Kerja Aktif.
+                            </small>
+                            
+                            <div style="display: flex; gap: 10px; margin-bottom: 14px; align-items: center;">
+                                <input type="month" id="holidayMonthSelect" class="form-input" style="background: white; padding: 8px 12px; max-width: 180px;" onchange="renderHolidayCalendar()">
+                                <button type="button" class="btn btn-secondary" onclick="resetMonthHolidays()" style="padding: 8px 12px; font-size: 0.8rem; border-radius: 8px; flex: initial; height: 42px;">
+                                    <i class="ri-restart-line"></i> Reset Bulan Ini
+                                </button>
+                            </div>
+                            
+                            <!-- Calendar Grid Container -->
+                            <div id="holidayCalendarGrid" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; padding: 12px; background: var(--bg-main); border-radius: 12px; border: 1px solid var(--border-color); text-align: center; max-width: 100%;">
+                                <!-- Grid hari libur akan dirender secara dinamis -->
+                            </div>
+                        </div>
+
                         <!-- Group: Lokasi (Geofencing) -->
                         <div style="background: var(--bg-input); padding: 20px; border-radius: 12px; border: 1px solid var(--border-color);">
                             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;">

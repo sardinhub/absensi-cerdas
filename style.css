@@ -1052,3 +1052,17 @@ textarea.form-input {
     font-size: 0.8rem;
     opacity: 0.8;
 }
+
+/* ============ HOLIDAY CALENDAR CELL ============ */
+.holiday-cell {
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.holiday-cell:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+    filter: brightness(0.97);
+}
+.holiday-cell:active {
+    transform: translateY(0);
+}
+

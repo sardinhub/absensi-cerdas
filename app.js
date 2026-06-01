@@ -44,11 +44,18 @@ document.addEventListener('DOMContentLoaded', () => {
     loadEmployees();
     checkSystemStatus();
 
-    // Set default bulan di performaMonthSelect ke bulan saat ini
+    // Set default bulan di performaMonthSelect dan holidayMonthSelect ke bulan saat ini
+    const now = new Date();
+    const currentYearMonth = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+    
     const msEl = document.getElementById('performaMonthSelect');
     if (msEl && !msEl.value) {
-        const now = new Date();
-        msEl.value = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+        msEl.value = currentYearMonth;
+    }
+    
+    const hmEl = document.getElementById('holidayMonthSelect');
+    if (hmEl && !hmEl.value) {
+        hmEl.value = currentYearMonth;
     }
 
     // Mobile Menu Toggle
@@ -95,9 +102,21 @@ function updateTime() {
 
 async function checkSystemStatus() {
     const now = new Date();
-    const isHoliday = await checkIfNationalHoliday(now);
-    if (now.getDay() === 0 || isHoliday) {
-        document.getElementById('offlineOverlay')?.classList.remove('hidden');
+    const isHoliday = await checkIfHoliday(now);
+    const overlay = document.getElementById('offlineOverlay');
+    if (isHoliday) {
+        overlay?.classList.remove('hidden');
+        const descEl = document.querySelector('#offlineMainContent p');
+        if (descEl) {
+            const dayIndex = now.getDay();
+            if (dayIndex === 0) {
+                descEl.textContent = 'Hari ini adalah hari Minggu. Sistem offline.';
+            } else {
+                descEl.textContent = 'Hari ini adalah Hari Libur Nasional / Libur Terjadwal. Sistem offline.';
+            }
+        }
+    } else {
+        overlay?.classList.add('hidden');
     }
 }
 
@@ -1979,6 +1998,20 @@ async function loadSettings() {
         // Toggle Piket
         CONFIG.piketEnabled = data.piket_enabled !== false; // default true jika null
 
+        // Load custom holidays kustom
+        CONFIG.customHolidays = {};
+        if (data.custom_holidays) {
+            try {
+                CONFIG.customHolidays = JSON.parse(data.custom_holidays);
+            } catch(e) {
+                console.error("Gagal parse custom_holidays dari DB:", e);
+            }
+        } else {
+            try {
+                CONFIG.customHolidays = JSON.parse(localStorage.getItem('custom_holidays')) || {};
+            } catch(e) {}
+        }
+
         if (document.getElementById('setAdminPass')) {
             document.getElementById('setAdminPass').value = data.admin_password;
             document.getElementById('setReward').value = data.early_bird_reward;
@@ -2007,6 +2040,9 @@ async function loadSettings() {
             if (setPiketEnabled) setPiketEnabled.checked = CONFIG.piketEnabled;
         }
         applyPiketFeatureToggle();
+        if (document.getElementById('holidayCalendarGrid')) {
+            renderHolidayCalendar();
+        }
     }
 }
 
@@ -2066,20 +2102,39 @@ window.saveSettings = async function() {
         saturday_end_time: wOutSaturday,
         piket_start_time: pStart,
         piket_end_time: pEnd,
-        piket_enabled: document.getElementById('setPiketEnabled')?.checked ?? true
+        piket_enabled: document.getElementById('setPiketEnabled')?.checked ?? true,
+        custom_holidays: JSON.stringify(CONFIG.customHolidays || {})
     };
+    
+    // Simpan salinan lokal ke localStorage agar selalu ada cadangan
+    localStorage.setItem('custom_holidays', JSON.stringify(CONFIG.customHolidays || {}));
     
     let error;
     if (CONFIG.configId) {
-        const res = await supabaseClient.from('settings_config').update(s).eq('id', CONFIG.configId);
+        let res = await supabaseClient.from('settings_config').update(s).eq('id', CONFIG.configId);
+        if (res.error && res.error.message.includes('custom_holidays')) {
+            // Kolom custom_holidays tidak ada di DB, hapus field dan coba simpan kembali secara lokal
+            const { custom_holidays, ...sWithoutHoliday } = s;
+            res = await supabaseClient.from('settings_config').update(sWithoutHoliday).eq('id', CONFIG.configId);
+            if (!res.error) {
+                alert("Pengaturan disimpan secara lokal di browser Anda.\n\nAgar tersinkronisasi secara online di Vercel, harap jalankan query SQL berikut di dashboard Supabase Anda (SQL Editor):\n\nALTER TABLE settings_config ADD COLUMN IF NOT EXISTS custom_holidays TEXT DEFAULT '{}';");
+            }
+        }
         error = res.error;
     } else {
-        const res = await supabaseClient.from('settings_config').insert([s]);
+        let res = await supabaseClient.from('settings_config').insert([s]);
+        if (res.error && res.error.message.includes('custom_holidays')) {
+            const { custom_holidays, ...sWithoutHoliday } = s;
+            res = await supabaseClient.from('settings_config').insert([sWithoutHoliday]);
+            if (!res.error) {
+                alert("Pengaturan disimpan secara lokal di browser Anda.\n\nAgar tersinkronisasi secara online di Vercel, harap jalankan query SQL berikut di dashboard Supabase Anda (SQL Editor):\n\nALTER TABLE settings_config ADD COLUMN IF NOT EXISTS custom_holidays TEXT DEFAULT '{}';");
+            }
+        }
         error = res.error;
     }
     
     if (error) {
-        alert("Gagal menyimpan! Error: " + error.message + "\n\nPastikan Anda sudah menjalankan SQL Migrasi di Supabase untuk menambah kolom baru.");
+        alert("Gagal menyimpan! Error: " + error.message);
         console.error("Save Settings Error:", error);
     } else {
         alert("Pengaturan Berhasil Tersimpan!"); 
@@ -2383,11 +2438,12 @@ async function checkIfNationalHoliday(date) {
 
 async function checkAndInsertAbsentStaff() {
     const now = new Date();
-    const dayIndex = now.getDay();
-    if (dayIndex === 0) return; // Minggu libur
-    const isHoliday = await checkIfNationalHoliday(now);
+    
+    // Cek apakah hari ini hari libur (Minggu, Libur Nasional, atau Kustom Override)
+    const isHoliday = await checkIfHoliday(now);
     if (isHoliday) return;
-
+    
+    const dayIndex = now.getDay();
     const schedule = getSchedule(dayIndex);
     if (!schedule) return;
 
@@ -2433,11 +2489,8 @@ async function getEffectiveWorkDays(year, month) {
     const days = [];
     const date = new Date(year, month, 1);
     while (date.getMonth() === month) {
-        const d = date.getDay();
-        if (d !== 0) { // Bukan Minggu
-            const isHoliday = await checkIfNationalHoliday(new Date(date));
-            if (!isHoliday) days.push(new Date(date));
-        }
+        const isHoliday = await checkIfHoliday(new Date(date));
+        if (!isHoliday) days.push(new Date(date));
         date.setDate(date.getDate() + 1);
     }
     return days;
@@ -2530,3 +2583,181 @@ window.loadPerforma = async function() {
 
     container.innerHTML = html || '<p style="text-align:center; color:var(--text-muted);">Tidak ada data staf.</p>';
 };
+
+// ============================================================
+// --- UNIFIED HOLIDAY SYSTEM ---
+// ============================================================
+
+async function checkIfHoliday(date) {
+    const dateStr = date.toLocaleDateString('en-CA'); // YYYY-MM-DD
+    
+    // 1. Cek kustom override dari admin
+    if (CONFIG.customHolidays && CONFIG.customHolidays[dateStr] !== undefined) {
+        return CONFIG.customHolidays[dateStr] === true;
+    }
+    
+    // 2. Default: Hari Minggu libur
+    const dayIndex = date.getDay();
+    if (dayIndex === 0) return true;
+    
+    // 3. Default: Hari Libur Nasional dari API
+    const isNatHoliday = await checkIfNationalHoliday(date);
+    return isNatHoliday;
+}
+
+function getNationalHolidayName(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const cacheKey = `holidays_${year}_${month}`;
+    let holidays = null;
+    try { holidays = JSON.parse(localStorage.getItem(cacheKey)); } catch(e) {}
+    if (Array.isArray(holidays)) {
+        const dateStr = date.toLocaleDateString('en-CA');
+        const h = holidays.find(x => x.holiday_date === dateStr && x.is_national_holiday);
+        return h ? h.holiday_name : '';
+    }
+    return '';
+}
+
+// ============================================================
+// --- HOLIDAY CALENDAR UI RENDERING ---
+// ============================================================
+
+window.renderHolidayCalendar = async function() {
+    const gridContainer = document.getElementById('holidayCalendarGrid');
+    if (!gridContainer) return;
+    
+    const monthSelect = document.getElementById('holidayMonthSelect');
+    const selVal = monthSelect?.value || `${new Date().getFullYear()}-${String(new Date().getMonth()+1).padStart(2,'0')}`;
+    const [year, month] = selVal.split('-').map(Number);
+    
+    // Clear and render headers
+    gridContainer.innerHTML = `
+        <div style="font-size: 0.75rem; font-weight: 700; color: #ef4444; padding: 6px 0;">Min</div>
+        <div style="font-size: 0.75rem; font-weight: 700; color: var(--text-secondary); padding: 6px 0;">Sen</div>
+        <div style="font-size: 0.75rem; font-weight: 700; color: var(--text-secondary); padding: 6px 0;">Sel</div>
+        <div style="font-size: 0.75rem; font-weight: 700; color: var(--text-secondary); padding: 6px 0;">Rab</div>
+        <div style="font-size: 0.75rem; font-weight: 700; color: var(--text-secondary); padding: 6px 0;">Kam</div>
+        <div style="font-size: 0.75rem; font-weight: 700; color: var(--text-secondary); padding: 6px 0;">Jum</div>
+        <div style="font-size: 0.75rem; font-weight: 700; color: var(--text-secondary); padding: 6px 0;">Sab</div>
+    `;
+    
+    const firstDay = new Date(year, month - 1, 1).getDay();
+    const daysInMonth = new Date(year, month, 0).getDate();
+    
+    // Render blank cells before first day
+    for (let i = 0; i < firstDay; i++) {
+        gridContainer.innerHTML += '<div></div>';
+    }
+    
+    // Pre-load national holidays for the month to make sure cache exists and renders smoothly
+    await checkIfNationalHoliday(new Date(year, month - 1, 1));
+    
+    // Render day cells
+    for (let day = 1; day <= daysInMonth; day++) {
+        const date = new Date(year, month - 1, day);
+        const dateStr = date.toLocaleDateString('en-CA');
+        
+        const isHoliday = await checkIfHoliday(date);
+        const isSunday = date.getDay() === 0;
+        const isNatHoliday = await checkIfNationalHoliday(date);
+        const holidayName = getNationalHolidayName(date);
+        
+        let bg, borderColor, textColor, subTextHtml, titleText;
+        
+        if (isHoliday) {
+            bg = 'rgba(239, 68, 68, 0.08)';
+            borderColor = 'rgba(239, 68, 68, 0.25)';
+            textColor = '#ef4444';
+            
+            if (CONFIG.customHolidays && CONFIG.customHolidays[dateStr] === true) {
+                subTextHtml = '<span style="font-size: 0.55rem; color: #f87171; font-weight: 700; margin-top: 2px;">Libur (K)</span>';
+                titleText = 'Libur Kustom (Admin)';
+            } else if (isNatHoliday) {
+                subTextHtml = '<span style="font-size: 0.55rem; color: #f87171; font-weight: 500; margin-top: 2px; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 90%;">Libur Nas.</span>';
+                titleText = `Libur Nasional: ${holidayName}`;
+            } else {
+                subTextHtml = '<span style="font-size: 0.55rem; color: #f87171; font-weight: 500; margin-top: 2px;">Minggu</span>';
+                titleText = 'Minggu (Libur Rutin)';
+            }
+        } else {
+            bg = 'rgba(5, 150, 105, 0.06)';
+            borderColor = 'rgba(5, 150, 105, 0.2)';
+            textColor = '#059669';
+            
+            if (CONFIG.customHolidays && CONFIG.customHolidays[dateStr] === false) {
+                subTextHtml = '<span style="font-size: 0.55rem; color: #34d399; font-weight: 700; margin-top: 2px;">Kerja (K)</span>';
+                titleText = 'Kerja Kustom (Admin)';
+            } else {
+                subTextHtml = '<span style="font-size: 0.55rem; color: #34d399; font-weight: 500; margin-top: 2px;">Kerja</span>';
+                titleText = 'Hari Kerja Aktif';
+            }
+        }
+        
+        gridContainer.innerHTML += `
+            <div onclick="toggleHolidayOverride('${dateStr}')" 
+                 class="holiday-cell" 
+                 style="aspect-ratio: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; border-radius: 8px; cursor: pointer; border: 1px solid ${borderColor}; background: ${bg}; position: relative; padding: 4px;" 
+                 title="${titleText}">
+                <span style="font-size: 0.95rem; font-weight: 700; color: ${textColor};">${day}</span>
+                ${subTextHtml}
+            </div>
+        `;
+    }
+};
+
+window.toggleHolidayOverride = async function(dateStr) {
+    if (!CONFIG.customHolidays) CONFIG.customHolidays = {};
+    
+    const date = new Date(dateStr);
+    const dayIndex = date.getDay();
+    const isNatHoliday = await checkIfNationalHoliday(date);
+    const defaultHoliday = (dayIndex === 0 || isNatHoliday);
+    
+    // Status saat ini (termasuk override kustom)
+    const currentStatus = (CONFIG.customHolidays[dateStr] !== undefined) 
+        ? CONFIG.customHolidays[dateStr] 
+        : defaultHoliday;
+        
+    const newStatus = !currentStatus;
+    
+    if (newStatus === defaultHoliday) {
+        delete CONFIG.customHolidays[dateStr];
+    } else {
+        CONFIG.customHolidays[dateStr] = newStatus;
+    }
+    
+    // Simpan ke localStorage terlebih dahulu sebagai salinan cadangan instan
+    localStorage.setItem('custom_holidays', JSON.stringify(CONFIG.customHolidays));
+    
+    // Re-render kalender secara instan di UI
+    await renderHolidayCalendar();
+    
+    // Jika tanggal yang di-toggle adalah hari ini, update status sistem offline overlay seketika
+    const todayStr = new Date().toLocaleDateString('en-CA');
+    if (dateStr === todayStr) {
+        await checkSystemStatus();
+    }
+};
+
+window.resetMonthHolidays = async function() {
+    const monthSelect = document.getElementById('holidayMonthSelect');
+    if (!monthSelect || !monthSelect.value) return;
+    const [yearStr, monthStr] = monthSelect.value.split('-');
+    
+    if (confirm(`Reset semua kustomisasi libur untuk bulan ${monthStr}/${yearStr}?`)) {
+        if (!CONFIG.customHolidays) CONFIG.customHolidays = {};
+        
+        const prefix = `${yearStr}-${monthStr}`;
+        Object.keys(CONFIG.customHolidays).forEach(key => {
+            if (key.startsWith(prefix)) {
+                delete CONFIG.customHolidays[key];
+            }
+        });
+        
+        localStorage.setItem('custom_holidays', JSON.stringify(CONFIG.customHolidays));
+        await renderHolidayCalendar();
+        await checkSystemStatus();
+    }
+};
+
