@@ -913,7 +913,25 @@ async function saveAttendance(empId, employee, type, now, reason = "") {
     checkAttendanceStatus();
 }
 
+// --- AUDIO NOTIFICATION ---
+function playAudio(type) {
+    const audioMap = {
+        'in': 'audio/masuk.mp3',
+        'out': 'audio/pulang.mp3',
+        'piket_in': 'audio/piket_masuk.mp3',
+        'piket_out': 'audio/piket_pulang.mp3'
+    };
+    
+    if (audioMap[type]) {
+        const audio = new Audio(audioMap[type]);
+        // Putar audio (browser biasanya mengizinkan ini karena dipicu oleh klik tombol 'Scan')
+        audio.play().catch(e => console.log('Audio error/diblokir browser:', e));
+    }
+}
+
 function showAttendancePopup({ name, time, type, status, lateMins, penalty, reward, isPiketStaff }) {
+    // Putar suara notifikasi
+    playAudio(type);
     const timeStr = time.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
     const isLate = status === 'Late';
     const isEarlyBird = status === 'Early Bird';
@@ -1221,6 +1239,8 @@ async function savePiketAttendance(empId, employee, type, now, reason = "Absensi
 }
 
 function showPiketAttendancePopup({ name, time, type, status, lateMins }) {
+    // Putar suara notifikasi
+    playAudio(type);
     const timeStr = time.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
     const isLate = status === 'Piket Terlambat';
     const isIn = type === 'piket_in';
