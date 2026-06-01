@@ -1350,8 +1350,11 @@ window.resetDateFilter = function() {
 };
 
 async function loadReport(isAutoRefresh = false) {
-    // Auto-tandai staf tidak masuk (hanya saat akses manual, bukan auto-refresh)
-    if (!isAutoRefresh) checkAndInsertAbsentStaff();
+    // Bersihkan log absen salah di hari libur dan jalankan auto-absen (hanya saat akses manual, bukan auto-refresh)
+    if (!isAutoRefresh) {
+        await cleanupAbsentLogsOnHolidays();
+        await checkAndInsertAbsentStaff();
+    }
     const emp = document.getElementById('reportEmployeeFilter')?.value || 'all';
     const per = document.getElementById('reportPeriodFilter')?.value || 'daily';
     const typeFilter = document.getElementById('reportTypeFilter')?.value || 'all';
@@ -2585,6 +2588,45 @@ window.loadPerforma = async function() {
 };
 
 // ============================================================
+// --- CLEANUP ABSENT LOGS ON HOLIDAYS ---
+// ============================================================
+
+async function cleanupAbsentLogsOnHolidays() {
+    try {
+        // Ambil semua log bertipe 'absent' dalam 30 hari terakhir
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        
+        const { data: absentLogs } = await supabaseClient
+            .from('attendance_logs')
+            .select('id, check_in_time')
+            .eq('type', 'absent')
+            .gte('check_in_time', thirtyDaysAgo.toISOString());
+            
+        if (!absentLogs || absentLogs.length === 0) return;
+        
+        const idsToDelete = [];
+        for (const log of absentLogs) {
+            const date = new Date(log.check_in_time);
+            const isHoliday = await checkIfHoliday(date);
+            if (isHoliday) {
+                idsToDelete.push(log.id);
+            }
+        }
+        
+        if (idsToDelete.length > 0) {
+            console.log(`[Cleanup] Menghapus ${idsToDelete.length} log 'Tidak Masuk Kantor' pada hari libur.`);
+            await supabaseClient
+                .from('attendance_logs')
+                .delete()
+                .in('id', idsToDelete);
+        }
+    } catch (e) {
+        console.error("Gagal melakukan cleanup log absensi hari libur:", e);
+    }
+}
+
+// ============================================================
 // --- UNIFIED HOLIDAY SYSTEM ---
 // ============================================================
 
@@ -2730,6 +2772,11 @@ window.toggleHolidayOverride = async function(dateStr) {
     // Simpan ke localStorage terlebih dahulu sebagai salinan cadangan instan
     localStorage.setItem('custom_holidays', JSON.stringify(CONFIG.customHolidays));
     
+    // Bersihkan data absensi "Tidak Masuk Kantor" jika hari diubah menjadi Libur
+    if (newStatus === true) {
+        await cleanupAbsentLogsOnHolidays();
+    }
+    
     // Re-render kalender secara instan di UI
     await renderHolidayCalendar();
     
@@ -2756,6 +2803,10 @@ window.resetMonthHolidays = async function() {
         });
         
         localStorage.setItem('custom_holidays', JSON.stringify(CONFIG.customHolidays));
+        
+        // Jalankan pembersihan pasca reset kustomisasi libur
+        await cleanupAbsentLogsOnHolidays();
+        
         await renderHolidayCalendar();
         await checkSystemStatus();
     }
