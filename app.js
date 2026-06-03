@@ -603,11 +603,18 @@ window.saveAdminCheckout = async function() {
     if (checkoutTime > new Date()) return alert("Jam pulang tidak boleh lebih dari waktu sekarang!");
     // Validasi: jam pulang harus setelah jam masuk
     try {
-        const today = new Date(); today.setHours(0, 0, 0, 0);
+        const checkoutDay = new Date(checkoutTime);
+        checkoutDay.setHours(0, 0, 0, 0);
+        const startOfDay = new Date(checkoutDay);
+        const endOfDay = new Date(checkoutDay);
+        endOfDay.setHours(23, 59, 59, 999);
+        
         const inType = type === 'piket_out' ? 'piket_in' : 'in';
         const { data: inLog } = await supabaseClient.from('attendance_logs')
             .select('check_in_time').eq('employee_id', empId).eq('type', inType)
-            .gte('check_in_time', today.toISOString()).order('check_in_time', { ascending: false }).limit(1);
+            .gte('check_in_time', startOfDay.toISOString())
+            .lte('check_in_time', endOfDay.toISOString())
+            .order('check_in_time', { ascending: false }).limit(1);
         if (inLog && inLog.length > 0) {
             const checkInTime = new Date(inLog[0].check_in_time);
             if (checkoutTime <= checkInTime)
