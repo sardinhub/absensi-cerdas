@@ -69,3 +69,16 @@ CREATE TABLE attendance_logs (
     location_lng DECIMAL(11, 8),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
+
+-- Tabel 4: leave_requests
+-- Menyimpan pengajuan cuti staf
+CREATE TABLE leave_requests (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    employee_id UUID REFERENCES employees(id) ON DELETE CASCADE,
+    start_date DATE NOT NULL,
+    end_date DATE NOT NULL,
+    total_days INTEGER NOT NULL,
+    reason TEXT,
+    status VARCHAR(50) DEFAULT 'pending', -- 'pending', 'approved', 'rejected'
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);

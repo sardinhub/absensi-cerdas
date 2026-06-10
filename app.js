@@ -193,17 +193,19 @@ window.switchTab = async function(tab) {
     const titles = { 
         checkin: ["Biometric Auth", "Pilih nama dan scan wajah"], 
         piket: ["Biometric Piket", "Absensi masuk dan pulang piket"],
+        leave_staff: ["Pengajuan Cuti", "Ajukan cuti dan pantau status persetujuan"],
         register: ["Manajemen Staf", "Kelola data dan wajah staf"], 
         history: ["Riwayat Aktivitas", "Raw logs aktivitas staf"], 
         report: ["Laporan Kehadiran", "Rekapitulasi performa staf"], 
         settings: ["Pengaturan", "Kelola sistem"],
-        performa: ["Performa Staf", "Dashboard kehadiran bulanan per staf"]
+        performa: ["Performa Staf", "Dashboard kehadiran bulanan per staf"],
+        leave_admin: ["Manajemen Cuti", "Persetujuan dan rekapitulasi cuti"]
     };
-    [document.getElementById('tabCheckIn'), document.getElementById('tabPiket'), document.getElementById('tabEmployees'), document.getElementById('tabHistory'), document.getElementById('tabReport'), document.getElementById('tabSettings'), document.getElementById('tabPerforma')].forEach(t => t?.classList.remove('active'));
-    [document.getElementById('checkInGrid'), document.getElementById('piketGrid'), document.getElementById('registerSection'), document.getElementById('historySection'), document.getElementById('reportSection'), document.getElementById('settingsSection'), document.getElementById('performaSection')].forEach(s => s?.classList.add('hidden'));
+    [document.getElementById('tabCheckIn'), document.getElementById('tabPiket'), document.getElementById('tabLeaveStaff'), document.getElementById('tabEmployees'), document.getElementById('tabHistory'), document.getElementById('tabReport'), document.getElementById('tabSettings'), document.getElementById('tabPerforma'), document.getElementById('tabLeaveAdmin')].forEach(t => t?.classList.remove('active'));
+    [document.getElementById('checkInGrid'), document.getElementById('piketGrid'), document.getElementById('leaveStaffSection'), document.getElementById('registerSection'), document.getElementById('historySection'), document.getElementById('reportSection'), document.getElementById('settingsSection'), document.getElementById('performaSection'), document.getElementById('leaveAdminSection')].forEach(s => s?.classList.add('hidden'));
     stopAllCameras();
-    const tabIdMap = { checkin:'tabCheckIn', piket:'tabPiket', register:'tabEmployees', history:'tabHistory', report:'tabReport', settings:'tabSettings', performa:'tabPerforma' };
-    const secIdMap = { checkin:'checkInGrid', piket:'piketGrid', register:'registerSection', history:'historySection', report:'reportSection', settings:'settingsSection', performa:'performaSection' };
+    const tabIdMap = { checkin:'tabCheckIn', piket:'tabPiket', leave_staff:'tabLeaveStaff', register:'tabEmployees', history:'tabHistory', report:'tabReport', settings:'tabSettings', performa:'tabPerforma', leave_admin:'tabLeaveAdmin' };
+    const secIdMap = { checkin:'checkInGrid', piket:'piketGrid', leave_staff:'leaveStaffSection', register:'registerSection', history:'historySection', report:'reportSection', settings:'settingsSection', performa:'performaSection', leave_admin:'leaveAdminSection' };
     const activeTab = document.getElementById(tabIdMap[tab] || 'tabSettings');
     const activeSec = document.getElementById(secIdMap[tab] || 'settingsSection');
     activeTab?.classList.add('active'); activeSec?.classList.remove('hidden');
@@ -214,6 +216,8 @@ window.switchTab = async function(tab) {
     if (tab === 'history') loadHistory(false);
     if (tab === 'report') loadReport(false);
     if (tab === 'performa') loadPerforma();
+    if (tab === 'leave_staff') populateLeaveStaffSelect();
+    if (tab === 'leave_admin') loadAdminLeaveRequests();
 };
 
 function stopAllCameras() {
@@ -3023,3 +3027,370 @@ window.resetMonthHolidays = async function() {
     }
 };
 
+// --- LEAVE MANAGEMENT (HAK CUTI) ---
+
+window.populateLeaveStaffSelect = function() {
+    const sel = document.getElementById('leaveEmployeeSelect');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">-- Pilih Nama --</option>' + allEmployees.map(e => `<option value="${e.id}">${e.full_name}</option>`).join('');
+};
+
+async function getWorkingDays(startDateStr, endDateStr) {
+    const start = new Date(startDateStr);
+    const end = new Date(endDateStr);
+    let count = 0;
+    
+    // Asumsi: jika ada custom holiday, kita akan abaikan. Namun fungsi checkIfHoliday membutuhkan instance Date.
+    // Untuk performa, kita akan iterasi setiap hari.
+    let current = new Date(start);
+    current.setHours(0,0,0,0);
+    const endMidnight = new Date(end);
+    endMidnight.setHours(0,0,0,0);
+    
+    while (current <= endMidnight) {
+        if (current.getDay() !== 0) { // Bukan hari Minggu
+            const isHoliday = await checkIfHoliday(current);
+            if (!isHoliday) {
+                count++;
+            }
+        }
+        current.setDate(current.getDate() + 1);
+    }
+    return count;
+}
+
+window.calculateLeaveDays = async function() {
+    const startVal = document.getElementById('leaveStartDate').value;
+    const endVal = document.getElementById('leaveEndDate').value;
+    const calcEl = document.getElementById('leaveDaysCalc');
+    
+    if (startVal && endVal) {
+        const start = new Date(startVal);
+        const end = new Date(endVal);
+        if (start > end) {
+            calcEl.innerHTML = '<span style="color: var(--danger);">Tanggal akhir tidak boleh lebih awal.</span>';
+            return;
+        }
+        const count = await getWorkingDays(startVal, endVal);
+        calcEl.innerHTML = `Total Hari Kerja: <strong>${count} hari</strong>`;
+    } else {
+        calcEl.innerHTML = 'Total Hari Kerja: <strong>0 hari</strong>';
+    }
+};
+
+window.loadLeaveStaffHistory = async function() {
+    const empId = document.getElementById('leaveEmployeeSelect').value;
+    const tbody = document.getElementById('leaveStaffHistoryTable');
+    const quotaDisplay = document.getElementById('leaveQuotaDisplay');
+    const quotaInfo = document.getElementById('leaveQuotaInfo');
+    
+    if (!empId) {
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--text-muted); padding: 16px;">Pilih nama staf terlebih dahulu</td></tr>';
+        quotaInfo.classList.add('hidden');
+        return;
+    }
+    
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 16px;"><span class="btn-spinner" style="width:14px;height:14px;display:inline-block;"></span> Memuat...</td></tr>';
+    quotaInfo.classList.remove('hidden');
+    quotaDisplay.innerHTML = '<span class="btn-spinner" style="width:18px;height:18px;display:inline-block;border-color:var(--primary) transparent var(--primary) transparent;"></span>';
+    
+    try {
+        const emp = allEmployees.find(e => e.id === empId);
+        if (!emp) throw new Error("Staf tidak ditemukan.");
+        
+        // 1. Hitung sisa kuota (Berdasarkan created_at)
+        const joinDate = new Date(emp.created_at || new Date());
+        const now = new Date();
+        
+        // Tentukan periode tahun berjalan
+        let periodStart = new Date(now.getFullYear(), joinDate.getMonth(), joinDate.getDate());
+        if (now < periodStart) {
+            // Jika hari ini belum melewati anniversary tahun ini, mundur ke tahun lalu
+            periodStart.setFullYear(periodStart.getFullYear() - 1);
+        }
+        let periodEnd = new Date(periodStart);
+        periodEnd.setFullYear(periodStart.getFullYear() + 1);
+        periodEnd.setDate(periodEnd.getDate() - 1); // 1 hari sebelum anniversary berikutnya
+        periodEnd.setHours(23, 59, 59, 999);
+        
+        // Cek riwayat cuti yang sudah di-approve dan jatuh pada periode ini
+        const { data: approvedLeaves, error: errCuti } = await supabaseClient
+            .from('leave_requests')
+            .select('total_days')
+            .eq('employee_id', empId)
+            .eq('status', 'approved')
+            .gte('start_date', periodStart.toISOString().split('T')[0])
+            .lte('start_date', periodEnd.toISOString().split('T')[0]);
+            
+        if (errCuti) throw errCuti;
+        
+        let usedQuota = 0;
+        approvedLeaves?.forEach(req => {
+            usedQuota += req.total_days;
+        });
+        
+        const remainingQuota = Math.max(0, 12 - usedQuota);
+        quotaDisplay.innerHTML = `${remainingQuota} <span style="font-size: 0.9rem; font-weight: 500; color: var(--text-muted);">/ 12 Hari</span>`;
+        
+        // 2. Load riwayat
+        const { data: history, error: errHist } = await supabaseClient
+            .from('leave_requests')
+            .select('*')
+            .eq('employee_id', empId)
+            .order('created_at', { ascending: false });
+            
+        if (errHist) throw errHist;
+        
+        if (history && history.length > 0) {
+            let html = '';
+            history.forEach(req => {
+                let badge = '';
+                if (req.status === 'approved') badge = '<span class="badge" style="background: rgba(5, 150, 105, 0.1); color: var(--success);"><i class="ri-check-line"></i> Disetujui</span>';
+                else if (req.status === 'rejected') badge = '<span class="badge" style="background: rgba(220, 38, 38, 0.1); color: var(--danger);"><i class="ri-close-line"></i> Ditolak</span>';
+                else badge = '<span class="badge" style="background: rgba(217, 119, 6, 0.1); color: var(--warning);"><i class="ri-time-line"></i> Menunggu</span>';
+                
+                const formatD = (dStr) => {
+                    const d = new Date(dStr);
+                    return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+                };
+                
+                const dateStr = req.start_date === req.end_date ? formatD(req.start_date) : `${formatD(req.start_date)} - ${formatD(req.end_date)}`;
+                
+                html += `<tr>
+                    <td><strong>${dateStr}</strong></td>
+                    <td style="max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${req.reason || '-'}">${req.reason || '-'}</td>
+                    <td>${req.total_days} Hari</td>
+                    <td>${badge}</td>
+                </tr>`;
+            });
+            tbody.innerHTML = html;
+        } else {
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--text-muted); padding: 16px;">Belum ada riwayat pengajuan cuti.</td></tr>';
+        }
+    } catch (err) {
+        tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--danger); padding: 16px;">Gagal memuat data: ${err.message}</td></tr>`;
+        quotaDisplay.innerHTML = '-';
+    }
+};
+
+window.submitLeaveRequest = async function() {
+    const empId = document.getElementById('leaveEmployeeSelect').value;
+    const startVal = document.getElementById('leaveStartDate').value;
+    const endVal = document.getElementById('leaveEndDate').value;
+    const reason = document.getElementById('leaveReason').value;
+    
+    if (!empId) return alert("Pilih nama Anda terlebih dahulu!");
+    if (!startVal || !endVal) return alert("Lengkapi tanggal mulai dan sampai!");
+    if (new Date(startVal) > new Date(endVal)) return alert("Tanggal mulai tidak boleh melebihi tanggal akhir!");
+    
+    const count = await getWorkingDays(startVal, endVal);
+    if (count <= 0) return alert("Rentang tanggal yang dipilih tidak memiliki hari kerja (Senin-Sabtu) aktif.");
+    
+    const btn = event.currentTarget;
+    const origHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="btn-spinner"></span> Mengajukan...';
+    
+    try {
+        const { error } = await supabaseClient.from('leave_requests').insert([{
+            employee_id: empId,
+            start_date: startVal,
+            end_date: endVal,
+            total_days: count,
+            reason: reason,
+            status: 'pending'
+        }]);
+        
+        if (error) throw error;
+        
+        alert("✅ Pengajuan cuti berhasil dikirim! Menunggu persetujuan admin/pimpinan.");
+        
+        // Reset form
+        document.getElementById('leaveStartDate').value = '';
+        document.getElementById('leaveEndDate').value = '';
+        document.getElementById('leaveReason').value = '';
+        document.getElementById('leaveDaysCalc').innerHTML = 'Total Hari Kerja: <strong>0 hari</strong>';
+        
+        // Refresh riwayat
+        loadLeaveStaffHistory();
+    } catch (err) {
+        alert("Gagal mengajukan cuti: " + err.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = origHtml;
+    }
+};
+
+window.loadAdminLeaveRequests = async function() {
+    const tbody = document.getElementById('leaveAdminTable');
+    if (!tbody) return;
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 20px;"><span class="btn-spinner" style="width:14px;height:14px;display:inline-block;"></span> Memuat...</td></tr>';
+    
+    try {
+        const { data: requests, error } = await supabaseClient
+            .from('leave_requests')
+            .select('*, employees(id, full_name, created_at)')
+            .order('created_at', { ascending: false });
+            
+        if (error) throw error;
+        
+        if (requests && requests.length > 0) {
+            let html = '';
+            
+            // Untuk menghitung sisa kuota, kita perlu re-evaluasi tiap staf
+            const now = new Date();
+            const quotaCache = {};
+            
+            for (const req of requests) {
+                const empId = req.employee_id;
+                const empName = req.employees?.full_name || 'N/A';
+                const joinDate = new Date(req.employees?.created_at || now);
+                
+                let remainingQuota = 12;
+                
+                if (quotaCache[empId] !== undefined) {
+                    remainingQuota = quotaCache[empId];
+                } else {
+                    let periodStart = new Date(now.getFullYear(), joinDate.getMonth(), joinDate.getDate());
+                    if (now < periodStart) {
+                        periodStart.setFullYear(periodStart.getFullYear() - 1);
+                    }
+                    let periodEnd = new Date(periodStart);
+                    periodEnd.setFullYear(periodStart.getFullYear() + 1);
+                    periodEnd.setDate(periodEnd.getDate() - 1);
+                    periodEnd.setHours(23, 59, 59, 999);
+                    
+                    const { data: approvedLeaves } = await supabaseClient
+                        .from('leave_requests')
+                        .select('total_days')
+                        .eq('employee_id', empId)
+                        .eq('status', 'approved')
+                        .gte('start_date', periodStart.toISOString().split('T')[0])
+                        .lte('start_date', periodEnd.toISOString().split('T')[0]);
+                        
+                    let used = 0;
+                    approvedLeaves?.forEach(al => used += al.total_days);
+                    remainingQuota = Math.max(0, 12 - used);
+                    quotaCache[empId] = remainingQuota;
+                }
+                
+                const formatD = (dStr) => {
+                    const d = new Date(dStr);
+                    return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+                };
+                const dateStr = req.start_date === req.end_date ? formatD(req.start_date) : `${formatD(req.start_date)} - ${formatD(req.end_date)}`;
+                
+                let statusBadge = '';
+                let actions = '';
+                
+                if (req.status === 'pending') {
+                    statusBadge = '<span class="badge" style="background: rgba(217, 119, 6, 0.1); color: var(--warning);"><i class="ri-time-line"></i> Menunggu</span>';
+                    actions = `
+                        <div style="display: flex; gap: 6px; justify-content: center;">
+                            <button class="btn-icon" style="background: var(--success); color: white;" onclick="handleApproveLeave('${req.id}', '${empId}', '${req.start_date}', '${req.end_date}', ${req.total_days}, ${remainingQuota})" title="Setujui"><i class="ri-check-line"></i></button>
+                            <button class="btn-icon" style="background: var(--danger); color: white;" onclick="handleRejectLeave('${req.id}')" title="Tolak"><i class="ri-close-line"></i></button>
+                        </div>
+                    `;
+                } else if (req.status === 'approved') {
+                    statusBadge = '<span class="badge" style="background: rgba(5, 150, 105, 0.1); color: var(--success);"><i class="ri-check-double-line"></i> Disetujui</span>';
+                    actions = '<span style="color: var(--text-muted); font-size: 0.8rem;">Selesai</span>';
+                } else {
+                    statusBadge = '<span class="badge" style="background: rgba(220, 38, 38, 0.1); color: var(--danger);"><i class="ri-close-circle-line"></i> Ditolak</span>';
+                    actions = '<span style="color: var(--text-muted); font-size: 0.8rem;">Selesai</span>';
+                }
+                
+                html += `<tr>
+                    <td><strong>${empName}</strong></td>
+                    <td>${dateStr}</td>
+                    <td>${req.reason || '-'}</td>
+                    <td>${req.total_days} Hari</td>
+                    <td><span style="font-weight:700; color: ${remainingQuota > 0 ? 'var(--success)' : 'var(--danger)'};">${remainingQuota}</span></td>
+                    <td>${statusBadge}</td>
+                    <td>${actions}</td>
+                </tr>`;
+            }
+            tbody.innerHTML = html;
+        } else {
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 20px;">Belum ada data pengajuan cuti.</td></tr>';
+        }
+    } catch (err) {
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--danger); padding: 20px;">Gagal memuat data: ${err.message}</td></tr>`;
+    }
+};
+
+window.handleRejectLeave = async function(reqId) {
+    if (!confirm("Apakah Anda yakin ingin menolak pengajuan cuti ini?")) return;
+    
+    try {
+        const { error } = await supabaseClient.from('leave_requests').update({ status: 'rejected' }).eq('id', reqId);
+        if (error) throw error;
+        alert("Pengajuan cuti ditolak.");
+        loadAdminLeaveRequests();
+    } catch (err) {
+        alert("Gagal menolak cuti: " + err.message);
+    }
+};
+
+window.handleApproveLeave = async function(reqId, empId, startDateStr, endDateStr, totalDays, currentQuota) {
+    if (!confirm("Apakah Anda yakin ingin menyetujui pengajuan cuti ini?\nSistem akan otomatis merekam log kehadiran staf untuk tanggal-tanggal yang diajukan.")) return;
+    
+    try {
+        // 1. Hitung hari-hari spesifik (Senin-Sabtu non-libur)
+        const start = new Date(startDateStr);
+        const end = new Date(endDateStr);
+        let current = new Date(start);
+        current.setHours(0,0,0,0);
+        const endMidnight = new Date(end);
+        endMidnight.setHours(0,0,0,0);
+        
+        let quota = currentQuota;
+        const logsToInsert = [];
+        
+        while (current <= endMidnight) {
+            if (current.getDay() !== 0) { // Bukan Minggu
+                const isHoliday = await checkIfHoliday(current);
+                if (!isHoliday) {
+                    // Tentukan denda jika kuota habis
+                    let penalty = 0;
+                    if (quota > 0) {
+                        quota--; // Gunakan kuota
+                    } else {
+                        penalty = CONFIG.maxDailyPenalty || 50000;
+                    }
+                    
+                    // Format ISO 8601 (Gunakan jam 08:00:00 lokal)
+                    const logDate = new Date(current);
+                    logDate.setHours(8, 0, 0, 0);
+                    
+                    logsToInsert.push({
+                        employee_id: empId,
+                        check_in_time: logDate.toISOString(),
+                        type: 'manual',
+                        status: 'Ijin (Hak Cuti)',
+                        notes: 'Pengajuan Cuti Disetujui Pimpinan/Admin',
+                        reward_amount: 0,
+                        penalty_amount: penalty,
+                        late_duration_minutes: 0
+                    });
+                }
+            }
+            current.setDate(current.getDate() + 1);
+        }
+        
+        // 2. Insert ke attendance_logs
+        if (logsToInsert.length > 0) {
+            const { error: errInsert } = await supabaseClient.from('attendance_logs').insert(logsToInsert);
+            if (errInsert) throw errInsert;
+        }
+        
+        // 3. Update status leave_requests
+        const { error: errUpdate } = await supabaseClient.from('leave_requests').update({ status: 'approved' }).eq('id', reqId);
+        if (errUpdate) throw errUpdate;
+        
+        alert("✅ Pengajuan cuti disetujui! Log kehadiran telah ditambahkan otomatis.");
+        loadAdminLeaveRequests();
+        
+    } catch (err) {
+        alert("Gagal menyetujui cuti: " + err.message);
+    }
+};

@@ -21,10 +21,12 @@
             <ul class="nav-links">
                 <li class="active" id="tabCheckIn"><a href="javascript:void(0)" onclick="switchTab('checkin')"><i class="ri-scan-2-line"></i> Absensi</a></li>
                 <li id="tabPiket"><a href="javascript:void(0)" onclick="switchTab('piket')"><i class="ri-shield-flash-line"></i> Absensi Piket</a></li>
+                <li id="tabLeaveStaff"><a href="javascript:void(0)" onclick="switchTab('leave_staff')"><i class="ri-calendar-check-line"></i> Pengajuan Cuti</a></li>
                 <li id="tabEmployees" class="admin-only"><a href="javascript:void(0)" onclick="switchTab('register')"><i class="ri-group-line"></i> Manajemen Staf</a></li>
                 <li id="tabHistory" class="admin-only"><a href="javascript:void(0)" onclick="switchTab('history')"><i class="ri-history-line"></i> Riwayat</a></li>
                 <li id="tabReport" class="admin-only"><a href="javascript:void(0)" onclick="switchTab('report')"><i class="ri-file-chart-line"></i> Laporan</a></li>
                 <li id="tabPerforma" class="admin-only"><a href="javascript:void(0)" onclick="switchTab('performa')"><i class="ri-bar-chart-grouped-line"></i> Performa Staf</a></li>
+                <li id="tabLeaveAdmin" class="admin-only"><a href="javascript:void(0)" onclick="switchTab('leave_admin')"><i class="ri-mail-check-line"></i> Manajemen Cuti</a></li>
                 <li id="tabSettings" class="admin-only"><a href="javascript:void(0)" onclick="switchTab('settings')"><i class="ri-settings-4-line"></i> Pengaturan</a></li>
             </ul>
             <div style="padding: 16px 12px; border-top: 1px solid var(--border-light);">
@@ -534,6 +536,113 @@
                     <!-- Grid Kartu Staf -->
                     <div id="performaCards" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:16px;">
                         <p style="color:var(--text-muted); text-align:center; padding:40px;">Pilih bulan dan klik <strong>Hitung Performa</strong> untuk melihat data.</p>
+                    </div>
+                </div>
+            </section>
+                </div>
+            </section>
+
+            <!-- Tab: Pengajuan Cuti (Staf) -->
+            <section id="leaveStaffSection" class="hidden">
+                <div class="glass-card" style="max-width: 600px; margin: 0 auto;">
+                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 24px;">
+                        <div style="width: 40px; height: 40px; border-radius: 10px; background: var(--primary-light); display: flex; align-items: center; justify-content: center; color: var(--primary); font-size: 1.2rem;">
+                            <i class="ri-calendar-check-line"></i>
+                        </div>
+                        <div>
+                            <h2 style="margin: 0;">Pengajuan Cuti</h2>
+                            <p style="color: var(--text-muted); font-size: 0.8rem; margin-top: 2px;">Ajukan cuti dan pantau status persetujuan</p>
+                        </div>
+                    </div>
+                    
+                    <div style="display: grid; gap: 16px; margin-bottom: 24px;">
+                        <div>
+                            <label class="form-label">Pilih Nama Anda</label>
+                            <select id="leaveEmployeeSelect" class="form-input" onchange="loadLeaveStaffHistory()"><option value="">-- Pilih Nama --</option></select>
+                        </div>
+                        <div id="leaveQuotaInfo" class="hidden" style="background: rgba(79, 70, 229, 0.05); border: 1px solid rgba(79, 70, 229, 0.15); border-radius: 8px; padding: 12px; display: flex; align-items: center; justify-content: space-between;">
+                            <div>
+                                <h4 style="margin: 0; color: var(--primary); font-size: 0.9rem;">Sisa Kuota Cuti Tahunan</h4>
+                                <small style="color: var(--text-muted);">Direset setiap tanggal bergabung</small>
+                            </div>
+                            <div style="font-size: 1.5rem; font-weight: 800; color: var(--primary);" id="leaveQuotaDisplay">-</div>
+                        </div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+                            <div>
+                                <label class="form-label">Mulai Tanggal</label>
+                                <input type="date" id="leaveStartDate" class="form-input" onchange="calculateLeaveDays()">
+                            </div>
+                            <div>
+                                <label class="form-label">Sampai Tanggal</label>
+                                <input type="date" id="leaveEndDate" class="form-input" onchange="calculateLeaveDays()">
+                            </div>
+                        </div>
+                        <div id="leaveDaysCalc" style="font-size: 0.85rem; color: var(--text-muted); text-align: right;">Total Hari Kerja: <strong>0 hari</strong></div>
+                        <div>
+                            <label class="form-label">Alasan Cuti</label>
+                            <textarea id="leaveReason" class="form-input" rows="3" placeholder="Contoh: Acara keluarga di luar kota..."></textarea>
+                        </div>
+                        <button class="btn btn-primary" onclick="submitLeaveRequest()" style="width: 100%; padding: 14px; font-weight: 600;">
+                            <i class="ri-send-plane-line"></i> Ajukan Cuti
+                        </button>
+                    </div>
+
+                    <div style="border-top: 1px solid var(--border-light); padding-top: 20px;">
+                        <h3 style="font-size: 1rem; margin-bottom: 12px;">Riwayat Pengajuan Saya</h3>
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>TANGGAL</th>
+                                        <th>ALASAN</th>
+                                        <th>TOTAL HARI</th>
+                                        <th>STATUS</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="leaveStaffHistoryTable">
+                                    <tr><td colspan="4" style="text-align: center; color: var(--text-muted); padding: 16px;">Pilih nama staf terlebih dahulu</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Tab: Manajemen Cuti (Admin) -->
+            <section id="leaveAdminSection" class="hidden">
+                <div class="glass-card">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 12px;">
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <div style="width: 40px; height: 40px; border-radius: 10px; background: var(--primary-light); display: flex; align-items: center; justify-content: center; color: var(--primary); font-size: 1.2rem;">
+                                <i class="ri-mail-check-line"></i>
+                            </div>
+                            <div>
+                                <h2 style="margin: 0;">Manajemen & Approval Cuti</h2>
+                                <p style="color: var(--text-muted); font-size: 0.8rem; margin-top: 2px;">Setujui atau tolak pengajuan cuti staf</p>
+                            </div>
+                        </div>
+                        <button class="btn btn-secondary" onclick="loadAdminLeaveRequests()">
+                            <i class="ri-refresh-line"></i> Refresh
+                        </button>
+                    </div>
+
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>STAF</th>
+                                    <th>TANGGAL CUTI</th>
+                                    <th>ALASAN</th>
+                                    <th>HARI KERJA</th>
+                                    <th>SISA KUOTA</th>
+                                    <th>STATUS</th>
+                                    <th>AKSI</th>
+                                </tr>
+                            </thead>
+                            <tbody id="leaveAdminTable">
+                                <tr><td colspan="7" style="text-align: center; padding: 20px;">Memuat data...</td></tr>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </section>
