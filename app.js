@@ -108,7 +108,7 @@ async function checkSystemStatus() {
         overlay?.classList.remove('hidden');
         const descEl = document.querySelector('#offlineMainContent p');
         if (descEl) {
-            const dayIndex = now.getDay();
+            const dayIndex = getWITADay(now);
             if (dayIndex === 0) {
                 descEl.textContent = 'Hari ini adalah hari Minggu. Sistem offline.';
             } else {
@@ -501,7 +501,7 @@ window.openAdminCheckout = async function() {
     document.getElementById('adminCheckoutPass').value = '';
     // Default jam pulang: jam kerja selesai hari ini (tapi tidak lebih dari sekarang)
     const now = new Date();
-    const sched = getSchedule(now.getDay());
+    const sched = getSchedule(getWITADay(now));
     let defaultTime = sched ? parseTime(sched.out) : now;
     if (defaultTime > now) defaultTime = now;
     const pad = n => String(n).padStart(2, '0');
@@ -782,7 +782,7 @@ window.saveEditLog = async function() {
     let lateMins = log.late_duration_minutes || 0;
 
     if (logType === 'in') {
-        const sched = getSchedule(newTime.getDay());
+        const sched = getSchedule(getWITADay(newTime));
         if (sched) {
             let isPiketStaff = false;
             try {
@@ -1037,7 +1037,7 @@ window.handleAttendance = async function(type) {
         const distance = api.euclideanDistance(det.descriptor, storedEmbedding);
         console.log(`[FaceMatch] ${emp.full_name} — Jarak: ${distance.toFixed(4)} | Threshold: ${FACE_MATCH_THRESHOLD}`);
         if (distance > FACE_MATCH_THRESHOLD) { alert(`Wajah tidak cocok! (Jarak: ${distance.toFixed(2)}, Batas: ${FACE_MATCH_THRESHOLD})\nPastikan pencahayaan cukup dan posisi wajah lurus ke kamera.`); return resetButtons(); }
-        const now = new Date(), sched = getSchedule(now.getDay());
+        const now = new Date(), sched = getSchedule(getWITADay(now));
         if (type === 'out' && sched && now < parseTime(sched.out)) {
             window.pendingAttendanceData = { empId, employee: emp, type, now };
             document.getElementById('earlyOutModal').classList.remove('hidden'); resetButtons(); return;
@@ -1048,7 +1048,7 @@ window.handleAttendance = async function(type) {
 };
 
 async function saveAttendance(empId, employee, type, now, reason = "") {
-    const sched = getSchedule(now.getDay()); let status = "On-Time", reward = 0, penalty = 0, lateMins = 0;
+    const sched = getSchedule(getWITADay(now)); let status = "On-Time", reward = 0, penalty = 0, lateMins = 0;
     
     // Cek apakah staff telah melakukan absen pulang piket (piket_out) dalam 18 jam terakhir
     let isPiketStaff = false;
@@ -2130,7 +2130,19 @@ async function loadEmployees() {
         if (historyEmpFilter) historyEmpFilter.innerHTML += `<option value="${e.id}">${e.full_name}</option>`;
     });
 }
-function parseTime(t, baseDate = new Date()) { const n = baseDate, [h, m, s] = t.split(':'); return new Date(n.getFullYear(), n.getMonth(), n.getDate(), h, m, s || 0); }
+// --- TIMEZONE HELPERS (WITA / +08:00) ---
+function getWITADay(dateObj = new Date()) {
+    return new Date(dateObj.getTime() + (8 * 3600000)).getUTCDay();
+}
+
+function parseTime(t, baseDate = new Date()) { 
+    const witaTime = new Date(baseDate.getTime() + (8 * 3600000));
+    const year = witaTime.getUTCFullYear();
+    const month = witaTime.getUTCMonth();
+    const date = witaTime.getUTCDate();
+    const [h, m, s] = t.split(':'); 
+    return new Date(Date.UTC(year, month, date, parseInt(h) - 8, parseInt(m), parseInt(s || 0))); 
+}
 
 // Hitung jarak (meter) menggunakan Rumus Haversine
 function calculateDistance(lat1, lon1, lat2, lon2) {
@@ -2658,7 +2670,7 @@ async function checkAndInsertAbsentStaff() {
     const isHoliday = await checkIfHoliday(now);
     if (isHoliday) return;
     
-    const dayIndex = now.getDay();
+    const dayIndex = getWITADay(now);
     const schedule = getSchedule(dayIndex);
     if (!schedule) return;
 
