@@ -723,6 +723,33 @@
             </div>
         </div>
     </div>
+    <div id="editLeaveModal" class="modal hidden">
+        <div class="glass-card" style="width:420px;">
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px;">
+                <div style="width: 36px; height: 36px; border-radius: 8px; background: var(--primary-light); display: flex; align-items: center; justify-content: center; color: var(--primary);"><i class="ri-edit-line"></i></div>
+                <h3 style="margin: 0;">Edit Pengajuan Cuti</h3>
+            </div>
+            <div style="display:grid; gap:14px; margin-bottom: 20px;">
+                <input type="hidden" id="editLeaveId">
+                <div>
+                    <label class="form-label">Tanggal Mulai</label>
+                    <input type="date" id="editLeaveStart" class="form-input">
+                </div>
+                <div>
+                    <label class="form-label">Tanggal Selesai</label>
+                    <input type="date" id="editLeaveEnd" class="form-input">
+                </div>
+                <div>
+                    <label class="form-label">Alasan</label>
+                    <textarea id="editLeaveReason" class="form-input" style="height: 70px;"></textarea>
+                </div>
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                <button class="btn btn-secondary" onclick="closeModals()">Batal</button>
+                <button class="btn btn-primary" onclick="saveEditLeave()">Simpan Perubahan</button>
+            </div>
+        </div>
+    </div>
 
     <div id="manualAttendanceModal" class="modal hidden">
         <div class="glass-card" style="width:420px;">

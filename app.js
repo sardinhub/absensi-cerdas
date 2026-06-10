@@ -3293,14 +3293,26 @@ window.loadAdminLeaveRequests = async function() {
                         <div style="display: flex; gap: 6px; justify-content: center;">
                             <button class="btn-icon" style="background: var(--success); color: white;" onclick="handleApproveLeave('${req.id}', '${empId}', '${req.start_date}', '${req.end_date}', ${req.total_days}, ${remainingQuota})" title="Setujui"><i class="ri-check-line"></i></button>
                             <button class="btn-icon" style="background: var(--danger); color: white;" onclick="handleRejectLeave('${req.id}')" title="Tolak"><i class="ri-close-line"></i></button>
+                            <button class="btn-icon btn-edit" onclick="openEditLeaveModal('${req.id}', '${req.start_date}', '${req.end_date}', \`${req.reason || ''}\`)" title="Edit"><i class="ri-pencil-line"></i></button>
+                            <button class="btn-icon btn-delete" onclick="handleDeleteLeave('${req.id}', '${req.status}')" title="Hapus"><i class="ri-delete-bin-line"></i></button>
                         </div>
                     `;
                 } else if (req.status === 'approved') {
                     statusBadge = '<span class="badge" style="background: rgba(5, 150, 105, 0.1); color: var(--success);"><i class="ri-check-double-line"></i> Disetujui</span>';
-                    actions = '<span style="color: var(--text-muted); font-size: 0.8rem;">Selesai</span>';
+                    actions = `
+                        <div style="display: flex; gap: 6px; justify-content: center;">
+                            <button class="btn-icon btn-edit" onclick="openEditLeaveModal('${req.id}', '${req.start_date}', '${req.end_date}', \`${req.reason || ''}\`)" title="Edit"><i class="ri-pencil-line"></i></button>
+                            <button class="btn-icon btn-delete" onclick="handleDeleteLeave('${req.id}', '${req.status}')" title="Hapus"><i class="ri-delete-bin-line"></i></button>
+                        </div>
+                    `;
                 } else {
                     statusBadge = '<span class="badge" style="background: rgba(220, 38, 38, 0.1); color: var(--danger);"><i class="ri-close-circle-line"></i> Ditolak</span>';
-                    actions = '<span style="color: var(--text-muted); font-size: 0.8rem;">Selesai</span>';
+                    actions = `
+                        <div style="display: flex; gap: 6px; justify-content: center;">
+                            <button class="btn-icon btn-edit" onclick="openEditLeaveModal('${req.id}', '${req.start_date}', '${req.end_date}', \`${req.reason || ''}\`)" title="Edit"><i class="ri-pencil-line"></i></button>
+                            <button class="btn-icon btn-delete" onclick="handleDeleteLeave('${req.id}', '${req.status}')" title="Hapus"><i class="ri-delete-bin-line"></i></button>
+                        </div>
+                    `;
                 }
                 
                 html += `<tr>
@@ -3396,5 +3408,61 @@ window.handleApproveLeave = async function(reqId, empId, startDateStr, endDateSt
         
     } catch (err) {
         alert("Gagal menyetujui cuti: " + err.message);
+    }
+};
+
+window.handleDeleteLeave = async function(reqId, status) {
+    if (status === 'approved') {
+        if (!confirm("PERINGATAN: Cuti ini sudah disetujui.\nMenghapus data ini TIDAK akan menghapus log kehadiran yang sudah terbuat otomatis.\nAnda harus menghapus log tersebut secara manual di menu Riwayat.\nYakin ingin menghapus pengajuan ini?")) return;
+    } else {
+        if (!confirm("Apakah Anda yakin ingin menghapus pengajuan cuti ini?")) return;
+    }
+    
+    try {
+        const { error } = await supabaseClient.from('leave_requests').delete().eq('id', reqId);
+        if (error) throw error;
+        alert("Data pengajuan cuti berhasil dihapus.");
+        loadAdminLeaveRequests();
+    } catch (err) {
+        alert("Gagal menghapus cuti: " + err.message);
+    }
+};
+
+window.openEditLeaveModal = function(reqId, startDate, endDate, reason) {
+    document.getElementById('editLeaveId').value = reqId;
+    document.getElementById('editLeaveStart').value = startDate;
+    document.getElementById('editLeaveEnd').value = endDate;
+    document.getElementById('editLeaveReason').value = reason;
+    
+    document.getElementById('editLeaveModal').classList.remove('hidden');
+};
+
+window.saveEditLeave = async function() {
+    const reqId = document.getElementById('editLeaveId').value;
+    const startVal = document.getElementById('editLeaveStart').value;
+    const endVal = document.getElementById('editLeaveEnd').value;
+    const reason = document.getElementById('editLeaveReason').value;
+    
+    if (!startVal || !endVal) return alert("Lengkapi tanggal mulai dan sampai!");
+    if (new Date(startVal) > new Date(endVal)) return alert("Tanggal mulai tidak boleh melebihi tanggal akhir!");
+    
+    const count = await getWorkingDays(startVal, endVal);
+    if (count <= 0) return alert("Rentang tanggal tidak memiliki hari kerja aktif.");
+    
+    try {
+        const { error } = await supabaseClient.from('leave_requests').update({
+            start_date: startVal,
+            end_date: endVal,
+            total_days: count,
+            reason: reason
+        }).eq('id', reqId);
+        
+        if (error) throw error;
+        alert("✅ Perubahan berhasil disimpan.");
+        closeModals();
+        loadAdminLeaveRequests();
+        loadLeaveStaffHistory();
+    } catch (err) {
+        alert("Gagal menyimpan perubahan: " + err.message);
     }
 };
