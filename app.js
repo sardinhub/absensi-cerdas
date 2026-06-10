@@ -3186,10 +3186,12 @@ window.submitLeaveRequest = async function() {
     const count = await getWorkingDays(startVal, endVal);
     if (count <= 0) return alert("Rentang tanggal yang dipilih tidak memiliki hari kerja (Senin-Sabtu) aktif.");
     
-    const btn = event.currentTarget;
-    const origHtml = btn.innerHTML;
-    btn.disabled = true;
-    btn.innerHTML = '<span class="btn-spinner"></span> Mengajukan...';
+    const btn = document.querySelector('#leaveStaffSection button.btn-primary');
+    const origHtml = btn ? btn.innerHTML : 'Ajukan Cuti';
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="btn-spinner"></span> Mengajukan...';
+    }
     
     try {
         const { error } = await supabaseClient.from('leave_requests').insert([{
@@ -3216,8 +3218,10 @@ window.submitLeaveRequest = async function() {
     } catch (err) {
         alert("Gagal mengajukan cuti: " + err.message);
     } finally {
-        btn.disabled = false;
-        btn.innerHTML = origHtml;
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = origHtml;
+        }
     }
 };
 
