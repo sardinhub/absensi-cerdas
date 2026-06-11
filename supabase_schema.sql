@@ -54,6 +54,8 @@ VALUES ('08:00:00', '17:00:00', '07:45:00', '14:00:00', '17:00:00', '21:00:00', 
 -- ALTER TABLE settings_config ADD COLUMN IF NOT EXISTS saturday_end_time TIME DEFAULT '14:00:00';
 -- ALTER TABLE settings_config ADD COLUMN IF NOT EXISTS piket_start_time TIME DEFAULT '17:00:00';
 -- ALTER TABLE settings_config ADD COLUMN IF NOT EXISTS piket_end_time TIME DEFAULT '21:00:00';
+-- ALTER TABLE settings_config ADD COLUMN IF NOT EXISTS piket_enabled BOOLEAN DEFAULT TRUE;
+-- ALTER TABLE settings_config ADD COLUMN IF NOT EXISTS leave_enabled BOOLEAN DEFAULT TRUE;
 
 -- Tabel 3: attendance_logs
 -- Log absensi harian dengan kalkulasi reward dan denda

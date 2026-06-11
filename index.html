@@ -450,6 +450,20 @@
                             </div>
                         </div>
 
+                        <!-- Group: Toggle Cuti -->
+                        <div style="background: var(--bg-input); padding: 20px; border-radius: 12px; border: 1px solid var(--border-color);">
+                            <div style="display: flex; align-items: center; justify-content: space-between;">
+                                <div>
+                                    <label class="form-label" style="margin:0;"><i class="ri-calendar-check-line"></i> Fitur Pengajuan Cuti</label>
+                                    <small style="color: var(--text-light); font-size: 0.7rem; display:block; margin-top:4px;">Nonaktifkan jika tidak memerlukan fitur pengajuan cuti.</small>
+                                </div>
+                                <label style="display:flex; align-items:center; gap:8px; cursor:pointer; flex-shrink:0;">
+                                    <input type="checkbox" id="setLeaveEnabled" onchange="toggleLeaveEnabled(this.checked)" style="width:16px; height:16px;" checked>
+                                    <span style="font-size:0.8rem; font-weight:600;">Aktifkan</span>
+                                </label>
+                            </div>
+                        </div>
+
                         <!-- Group: Kalender Hari Libur -->
                         <div style="background: var(--bg-input); padding: 20px; border-radius: 12px; border: 1px solid var(--border-color);">
                             <label class="form-label" style="margin-bottom: 8px;"><i class="ri-calendar-event-line"></i> Kalender Hari Libur & Overrides</label>
@@ -540,7 +554,13 @@
                 </div>
             </section>
             <!-- Tab: Pengajuan Cuti (Staf) -->
-            <section id="leaveStaffSection" class="hidden">
+            <section id="leaveStaffSection" class="hidden" style="position: relative;">
+                <!-- Overlay cuti disabled -->
+                <div id="leaveDisabledOverlay" class="hidden" style="position:absolute; inset:0; background:rgba(255,255,255,0.92); border-radius:16px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; z-index:10;">
+                    <i class="ri-calendar-close-line" style="font-size:3rem; color:var(--danger);"></i>
+                    <p style="font-size:1rem; font-weight:700; color:var(--danger); text-align:center; margin:0;">Fitur Pengajuan Cuti<br>Sedang Dinonaktifkan oleh Admin</p>
+                    <p style="font-size:0.8rem; color:var(--text-muted); text-align:center; margin:0;">Hubungi admin untuk informasi lebih lanjut.</p>
+                </div>
                 <div class="glass-card" style="max-width: 600px; margin: 0 auto;">
                     <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 24px;">
                         <div style="width: 40px; height: 40px; border-radius: 10px; background: var(--primary-light); display: flex; align-items: center; justify-content: center; color: var(--primary); font-size: 1.2rem;">

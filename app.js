@@ -2189,6 +2189,9 @@ async function loadSettings() {
         // Toggle Piket
         CONFIG.piketEnabled = data.piket_enabled !== false; // default true jika null
 
+        // Toggle Cuti
+        CONFIG.leaveEnabled = data.leave_enabled !== false; // default true jika null
+
         // Load custom holidays kustom
         CONFIG.customHolidays = {};
         if (data.custom_holidays) {
@@ -2229,8 +2232,13 @@ async function loadSettings() {
             // Toggle piket UI binding
             const setPiketEnabled = document.getElementById('setPiketEnabled');
             if (setPiketEnabled) setPiketEnabled.checked = CONFIG.piketEnabled;
+
+            // Toggle cuti UI binding
+            const setLeaveEnabled = document.getElementById('setLeaveEnabled');
+            if (setLeaveEnabled) setLeaveEnabled.checked = CONFIG.leaveEnabled;
         }
         applyPiketFeatureToggle();
+        applyLeaveFeatureToggle();
         if (document.getElementById('holidayCalendarGrid')) {
             renderHolidayCalendar();
         }
@@ -2254,6 +2262,31 @@ function applyPiketFeatureToggle() {
 window.togglePiketEnabled = function(checked) {
     CONFIG.piketEnabled = checked;
     applyPiketFeatureToggle();
+};
+
+function applyLeaveFeatureToggle() {
+    const isEnabled = CONFIG.leaveEnabled !== false;
+    const leaveStaffTab = document.getElementById('tabLeaveStaff');
+    const leaveAdminTab = document.getElementById('tabLeaveAdmin');
+    const overlay = document.getElementById('leaveDisabledOverlay');
+    if (leaveStaffTab) {
+        leaveStaffTab.style.opacity = isEnabled ? '' : '0.4';
+        leaveStaffTab.style.pointerEvents = isEnabled ? '' : 'none';
+        leaveStaffTab.title = isEnabled ? '' : 'Fitur Cuti dinonaktifkan oleh Admin';
+    }
+    if (leaveAdminTab) {
+        leaveAdminTab.style.opacity = isEnabled ? '' : '0.4';
+        leaveAdminTab.style.pointerEvents = isEnabled ? '' : 'none';
+        leaveAdminTab.title = isEnabled ? '' : 'Fitur Cuti dinonaktifkan oleh Admin';
+    }
+    if (overlay) {
+        isEnabled ? overlay.classList.add('hidden') : overlay.classList.remove('hidden');
+    }
+}
+
+window.toggleLeaveEnabled = function(checked) {
+    CONFIG.leaveEnabled = checked;
+    applyLeaveFeatureToggle();
 };
 window.saveSettings = async function() {
     const p = document.getElementById('setAdminPass').value, r = parseInt(document.getElementById('setReward').value), d = parseInt(document.getElementById('setPenalty').value), l = parseInt(document.getElementById('setEarlyLimit').value), m = parseInt(document.getElementById('setMaxPenalty').value);
@@ -2294,6 +2327,7 @@ window.saveSettings = async function() {
         piket_start_time: pStart,
         piket_end_time: pEnd,
         piket_enabled: document.getElementById('setPiketEnabled')?.checked ?? true,
+        leave_enabled: document.getElementById('setLeaveEnabled')?.checked ?? true,
         custom_holidays: JSON.stringify(CONFIG.customHolidays || {})
     };
     
