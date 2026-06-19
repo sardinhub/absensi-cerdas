@@ -784,41 +784,19 @@ window.saveEditLog = async function() {
     if (logType === 'in') {
         const sched = getSchedule(getWITADay(newTime));
         if (sched) {
-            let isPiketStaff = false;
-            try {
-                const lookupTime = new Date(newTime.getTime() - (18 * 60 * 60 * 1000));
-                const { data: recentPiketOut } = await supabaseClient
-                    .from('attendance_logs')
-                    .select('id')
-                    .eq('employee_id', employeeId)
-                    .eq('type', 'piket_out')
-                    .gte('check_in_time', lookupTime.toISOString())
-                    .lte('check_in_time', newTime.toISOString())
-                    .limit(1);
-                if (recentPiketOut && recentPiketOut.length > 0) {
-                    isPiketStaff = true;
-                }
-            } catch (e) {
-                console.error("Gagal mengecek log piket_out untuk edit:", e);
-            }
-
-            const originalWorkStart = parseTime(sched.in, newTime);
-            let workStartForLate = originalWorkStart;
-            if (isPiketStaff) {
-                workStartForLate = new Date(originalWorkStart.getTime() + (30 * 60000));
-            }
+            const workStart = parseTime(sched.in, newTime);
 
             status = "On-Time";
             reward = 0;
             penalty = 0;
             lateMins = 0;
 
-            if (newTime <= new Date(originalWorkStart.getTime() - (CONFIG.earlyBirdBuffer * 60000))) {
+            if (newTime <= new Date(workStart.getTime() - (CONFIG.earlyBirdBuffer * 60000))) {
                 status = "Early Bird";
                 reward = CONFIG.earlyBirdReward;
-            } else if (newTime > workStartForLate) {
+            } else if (newTime > workStart) {
                 status = "Late";
-                lateMins = Math.floor((newTime - workStartForLate) / 60000);
+                lateMins = Math.floor((newTime - workStart) / 60000);
                 const rawPenalty = lateMins * CONFIG.latePenaltyPerMinute;
                 const maxCap = CONFIG.maxDailyPenalty || MAX_PENALTY_FALLBACK;
                 penalty = Math.min(rawPenalty, maxCap);
@@ -1049,42 +1027,16 @@ window.handleAttendance = async function(type) {
 
 async function saveAttendance(empId, employee, type, now, reason = "") {
     const sched = getSchedule(getWITADay(now)); let status = "On-Time", reward = 0, penalty = 0, lateMins = 0;
-    
-    // Cek apakah staff telah melakukan absen pulang piket (piket_out) dalam 18 jam terakhir
-    let isPiketStaff = false;
-    if (type === 'in') {
-        try {
-            const lookupTime = new Date(now.getTime() - (18 * 60 * 60 * 1000));
-            const { data: recentPiketOut } = await supabaseClient
-                .from('attendance_logs')
-                .select('id')
-                .eq('employee_id', empId)
-                .eq('type', 'piket_out')
-                .gte('check_in_time', lookupTime.toISOString())
-                .limit(1);
-            if (recentPiketOut && recentPiketOut.length > 0) {
-                isPiketStaff = true;
-                console.log(`[Piket Grace] Staf ${employee.full_name} memiliki log piket_out dalam 18 jam terakhir. Diberikan toleransi masuk.`);
-            }
-        } catch (e) {
-            console.error("Gagal mengecek log piket_out:", e);
-        }
-    }
 
     if (type === 'in' && sched) {
-        const originalWorkStart = parseTime(sched.in);
-        let workStartForLate = originalWorkStart;
-        if (isPiketStaff) {
-            workStartForLate = new Date(originalWorkStart.getTime() + (30 * 60000));
-            console.log(`[Piket Tolerance] Staf Piket ${employee.full_name} mendapat toleransi 30 menit karena piket pulang. Batas terlambat: ${workStartForLate.toLocaleTimeString()}`);
-        }
+        const workStart = parseTime(sched.in);
 
-        if (now <= new Date(originalWorkStart.getTime() - (CONFIG.earlyBirdBuffer * 60000))) { 
+        if (now <= new Date(workStart.getTime() - (CONFIG.earlyBirdBuffer * 60000))) { 
             status = "Early Bird"; 
             reward = CONFIG.earlyBirdReward; 
-        } else if (now > workStartForLate) {
+        } else if (now > workStart) {
             status = "Late";
-            lateMins = Math.floor((now - workStartForLate) / 60000);
+            lateMins = Math.floor((now - workStart) / 60000);
             const rawPenalty = lateMins * CONFIG.latePenaltyPerMinute;
             const maxCap = CONFIG.maxDailyPenalty || MAX_PENALTY_FALLBACK;
             penalty = Math.min(rawPenalty, maxCap);
@@ -1108,7 +1060,7 @@ async function saveAttendance(empId, employee, type, now, reason = "") {
     document.getElementById('resultTime').textContent = now.toLocaleTimeString();
     document.getElementById('resultBadge').textContent = status;
     
-    showAttendancePopup({ name: employee.full_name, time: now, type, status, lateMins, penalty, reward, isPiketStaff });
+    showAttendancePopup({ name: employee.full_name, time: now, type, status, lateMins, penalty, reward });
     
     // Update status tombol
     checkAttendanceStatus();
@@ -1159,12 +1111,7 @@ function showAttendancePopup({ name, time, type, status, lateMins, penalty, rewa
             </div>`;
         }
 
-        if (isPiketStaff) {
-            detail += `<div style="background: var(--primary-light); border: 1px solid rgba(79, 70, 229, 0.15); border-radius: 10px; padding: 12px; text-align: left; margin-top: 10px; display: flex; align-items: center; gap: 8px;">
-                <i class="ri-time-line" style="color: var(--primary); font-size: 1.1rem;"></i>
-                <p style="color: var(--primary); font-weight: 600; font-size: 0.8rem; margin: 0; line-height: 1.4;">💡 Toleransi Masuk 30 Menit Aktif (Staf Pasca Piket)</p>
-            </div>`;
-        }
+
 
         // Set icon color
         detail = `<div style="width: 64px; height: 64px; border-radius: 16px; background: ${iconBg}; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px;">
@@ -2777,21 +2724,69 @@ window.loadPerforma = async function() {
 
     const { data: logs } = await supabaseClient
         .from('attendance_logs')
-        .select('employee_id, type, check_in_time')
+        .select('employee_id, type, status, check_in_time')
         .in('type', ['in', 'manual'])
         .gte('check_in_time', startOfMonth.toISOString())
         .lte('check_in_time', endOfMonth.toISOString());
+
+    // Ambil juga semua log ketidakhadiran (absent + manual Sakit/Ijin/Tugas Luar)
+    const { data: absentRawLogs } = await supabaseClient
+        .from('attendance_logs')
+        .select('employee_id, type, status, check_in_time, notes')
+        .in('type', ['absent', 'manual'])
+        .gte('check_in_time', startOfMonth.toISOString())
+        .lte('check_in_time', endOfMonth.toISOString())
+        .order('check_in_time', { ascending: true });
 
     // Hitung kehadiran unik per staf per hari
     const attendanceMap = {}; // empId -> Set of dateStr
     (logs || []).forEach(log => {
         if (log.type === 'manual') {
             const stStr = log.status || '';
-            if (stStr === 'Sakit' || stStr.includes('Permintaan Sendiri') || stStr === 'Tugas Luar') return; // tidak dihitung sebagai hadir
+            if (stStr === 'Sakit' || stStr.includes('Permintaan Sendiri') || stStr === 'Tugas Luar' || stStr === 'Ijin') return;
         }
         const dateStr = new Date(log.check_in_time).toLocaleDateString('en-CA');
         if (!attendanceMap[log.employee_id]) attendanceMap[log.employee_id] = new Set();
         attendanceMap[log.employee_id].add(dateStr);
+    });
+
+    // Kelompokkan log ketidakhadiran per staf
+    // absentMap: empId -> [ { dateStr, keterangan, notes } ]
+    const absentMap = {};
+    (absentRawLogs || []).forEach(log => {
+        let isAbsenceEntry = false;
+        let keterangan = '';
+
+        if (log.type === 'absent') {
+            isAbsenceEntry = true;
+            keterangan = 'Tidak Masuk Kantor';
+        } else if (log.type === 'manual') {
+            const st = log.status || '';
+            if (st === 'Sakit') {
+                isAbsenceEntry = true;
+                keterangan = 'Sakit';
+            } else if (st === 'Ijin') {
+                isAbsenceEntry = true;
+                keterangan = 'Ijin';
+            } else if (st === 'Tugas Luar') {
+                isAbsenceEntry = true;
+                keterangan = 'Tugas Luar';
+            } else if (st.includes('Permintaan Sendiri')) {
+                isAbsenceEntry = true;
+                keterangan = 'Ijin Permintaan Sendiri';
+            }
+        }
+
+        if (!isAbsenceEntry) return;
+
+        if (!absentMap[log.employee_id]) absentMap[log.employee_id] = [];
+        const dateStr = new Date(log.check_in_time).toLocaleDateString('en-CA');
+
+        // Hindari duplikat tanggal yang sama per karyawan
+        const alreadyExists = absentMap[log.employee_id].some(e => e.dateStr === dateStr);
+        if (!alreadyExists) {
+            absentMap[log.employee_id].push({ dateStr, keterangan, notes: log.notes || '' });
+        }
     });
 
     if (allEmployees.length === 0) {
@@ -2804,6 +2799,24 @@ window.loadPerforma = async function() {
         if (pct >= 60) return { icon: '⚠️', label: 'Kehadiran Cukup', color: '#d97706', bg: 'rgba(217,119,6,0.08)', border: 'rgba(217,119,6,0.2)' };
         if (pct >= 40) return { icon: '🔴', label: 'Kehadiran Kurang', color: '#dc2626', bg: 'rgba(220,38,38,0.08)', border: 'rgba(220,38,38,0.2)' };
         return { icon: '❌', label: 'Kehadiran Sangat Kurang', color: '#7f1d1d', bg: 'rgba(127,29,29,0.08)', border: 'rgba(127,29,29,0.2)' };
+    };
+
+    // Helper: format tanggal ke tampilan Indonesia
+    const formatTanggal = (dateStr) => {
+        const d = new Date(dateStr + 'T12:00:00');
+        return d.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    };
+
+    // Helper: style badge keterangan ketidakhadiran
+    const getKetStyle = (ket) => {
+        if (ket === 'Sakit')
+            return { color: '#dc2626', bg: 'rgba(220,38,38,0.1)', border: 'rgba(220,38,38,0.25)', icon: 'ri-heart-pulse-line' };
+        if (ket === 'Ijin' || ket === 'Ijin Permintaan Sendiri')
+            return { color: '#d97706', bg: 'rgba(217,119,6,0.1)', border: 'rgba(217,119,6,0.25)', icon: 'ri-chat-history-line' };
+        if (ket === 'Tugas Luar')
+            return { color: '#0891b2', bg: 'rgba(8,145,178,0.1)', border: 'rgba(8,145,178,0.25)', icon: 'ri-road-map-line' };
+        // default: Tidak Masuk Kantor (tanpa keterangan)
+        return { color: '#7f1d1d', bg: 'rgba(127,29,29,0.08)', border: 'rgba(127,29,29,0.25)', icon: 'ri-user-unfollow-line' };
     };
 
     let html = '';
@@ -2819,6 +2832,54 @@ window.loadPerforma = async function() {
         const badge = getBadge(pct);
         const initials = emp.full_name.split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase();
         const rank = idx + 1;
+
+        // Bangun bagian catatan ketidakhadiran
+        const absentEntries = absentMap[emp.id] || [];
+        let absentSectionHtml = '';
+        if (absentEntries.length > 0) {
+            const rows = absentEntries.map((entry, ei) => {
+                const ks = getKetStyle(entry.keterangan);
+                // Tampilkan notes jika bukan auto-generated
+                const isAutoNotes = entry.notes.startsWith('Auto-generated:') || entry.notes === '';
+                const notesText = !isAutoNotes
+                    ? `<div style="color:var(--text-muted); font-size:0.72rem; font-style:italic; margin-top:3px; padding-left:2px;">${entry.notes}</div>`
+                    : '';
+                const borderStyle = ei < absentEntries.length - 1
+                    ? 'border-bottom:1px solid var(--border-light);'
+                    : '';
+                return `
+                <div style="display:flex; align-items:flex-start; gap:10px; padding:8px 0; ${borderStyle}">
+                    <div style="width:30px; height:30px; border-radius:8px; background:${ks.bg}; border:1px solid ${ks.border}; display:flex; align-items:center; justify-content:center; flex-shrink:0; margin-top:1px;">
+                        <i class="${ks.icon}" style="font-size:0.95rem; color:${ks.color};"></i>
+                    </div>
+                    <div style="flex:1; min-width:0;">
+                        <div style="font-size:0.8rem; font-weight:600; color:var(--text-main);">${formatTanggal(entry.dateStr)}</div>
+                        <span style="display:inline-block; font-size:0.72rem; font-weight:700; color:${ks.color}; background:${ks.bg}; border:1px solid ${ks.border}; border-radius:99px; padding:1px 9px; margin-top:3px;">${entry.keterangan}</span>
+                        ${notesText}
+                    </div>
+                </div>`;
+            }).join('');
+
+            absentSectionHtml = `
+            <div style="border-top:1px solid var(--border-light); padding-top:12px;">
+                <div style="display:flex; align-items:center; gap:7px; margin-bottom:10px;">
+                    <i class="ri-calendar-close-line" style="font-size:1rem; color:#dc2626;"></i>
+                    <span style="font-size:0.8rem; font-weight:700; color:#dc2626;">Catatan Hari Tidak Masuk</span>
+                    <span style="margin-left:auto; font-size:0.72rem; font-weight:700; color:white; background:#dc2626; border-radius:99px; padding:2px 9px;">${absentEntries.length} hari</span>
+                </div>
+                <div>${rows}</div>
+            </div>`;
+        } else {
+            // Tidak ada catatan ketidakhadiran = hadir penuh / tidak ada record absen
+            absentSectionHtml = `
+            <div style="border-top:1px solid var(--border-light); padding-top:10px;">
+                <div style="display:flex; align-items:center; gap:7px;">
+                    <i class="ri-checkbox-circle-line" style="font-size:1rem; color:#059669;"></i>
+                    <span style="font-size:0.78rem; color:#059669; font-weight:600;">Tidak ada catatan ketidakhadiran</span>
+                </div>
+            </div>`;
+        }
+
         html += `
         <div style="background: white; border: 1px solid var(--border-light); border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 14px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); transition: transform 0.2s;" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform=''">
             <div style="display: flex; align-items: center; gap: 14px;">
@@ -2842,6 +2903,7 @@ window.loadPerforma = async function() {
             <div style="background: ${badge.bg}; border: 1px solid ${badge.border}; border-radius: 8px; padding: 8px 12px; text-align: center;">
                 <span style="font-size: 0.8rem; font-weight: 600; color: ${badge.color};">${badge.label}</span>
             </div>
+            ${absentSectionHtml}
         </div>`;
     });
 
