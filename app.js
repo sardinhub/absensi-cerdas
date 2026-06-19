@@ -2722,6 +2722,14 @@ window.loadPerforma = async function() {
     const startOfMonth = new Date(year, month - 1, 1);
     const endOfMonth   = new Date(year, month, 0, 23, 59, 59);
 
+    // Hanya tampilkan hari kerja yang sudah lewat (tidak tampilkan hari depan)
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+    const relevantWorkDayStrs = workDays
+        .filter(d => d <= today)
+        .map(d => d.toLocaleDateString('en-CA'));
+
+    // Query semua log kehadiran (in + manual yang dihitung sebagai hadir)
     const { data: logs } = await supabaseClient
         .from('attendance_logs')
         .select('employee_id, type, status, check_in_time')
@@ -2729,8 +2737,8 @@ window.loadPerforma = async function() {
         .gte('check_in_time', startOfMonth.toISOString())
         .lte('check_in_time', endOfMonth.toISOString());
 
-    // Ambil juga semua log ketidakhadiran (absent + manual Sakit/Ijin/Tugas Luar)
-    const { data: absentRawLogs } = await supabaseClient
+    // Query semua log dengan keterangan eksplisit (Sakit/Ijin/Tugas Luar/absent)
+    const { data: explicitLogs } = await supabaseClient
         .from('attendance_logs')
         .select('employee_id, type, status, check_in_time, notes')
         .in('type', ['absent', 'manual'])
@@ -2738,54 +2746,38 @@ window.loadPerforma = async function() {
         .lte('check_in_time', endOfMonth.toISOString())
         .order('check_in_time', { ascending: true });
 
-    // Hitung kehadiran unik per staf per hari
+    // Hitung kehadiran unik per staf per hari (hari yang dihitung hadir)
     const attendanceMap = {}; // empId -> Set of dateStr
     (logs || []).forEach(log => {
         if (log.type === 'manual') {
-            const stStr = log.status || '';
-            if (stStr === 'Sakit' || stStr.includes('Permintaan Sendiri') || stStr === 'Tugas Luar' || stStr === 'Ijin') return;
+            const st = log.status || '';
+            // Status ini TIDAK dihitung hadir
+            if (st === 'Sakit' || st === 'Ijin' || st === 'Tugas Luar' || st.includes('Permintaan Sendiri')) return;
         }
         const dateStr = new Date(log.check_in_time).toLocaleDateString('en-CA');
         if (!attendanceMap[log.employee_id]) attendanceMap[log.employee_id] = new Set();
         attendanceMap[log.employee_id].add(dateStr);
     });
 
-    // Kelompokkan log ketidakhadiran per staf
-    // absentMap: empId -> [ { dateStr, keterangan, notes } ]
-    const absentMap = {};
-    (absentRawLogs || []).forEach(log => {
-        let isAbsenceEntry = false;
+    // Bangun peta keterangan eksplisit: empId -> { dateStr -> { keterangan, notes } }
+    const explicitReasonMap = {}; // empId -> { dateStr: {keterangan, notes} }
+    (explicitLogs || []).forEach(log => {
         let keterangan = '';
-
         if (log.type === 'absent') {
-            isAbsenceEntry = true;
             keterangan = 'Tidak Masuk Kantor';
         } else if (log.type === 'manual') {
             const st = log.status || '';
-            if (st === 'Sakit') {
-                isAbsenceEntry = true;
-                keterangan = 'Sakit';
-            } else if (st === 'Ijin') {
-                isAbsenceEntry = true;
-                keterangan = 'Ijin';
-            } else if (st === 'Tugas Luar') {
-                isAbsenceEntry = true;
-                keterangan = 'Tugas Luar';
-            } else if (st.includes('Permintaan Sendiri')) {
-                isAbsenceEntry = true;
-                keterangan = 'Ijin Permintaan Sendiri';
-            }
+            if (st === 'Sakit') keterangan = 'Sakit';
+            else if (st === 'Ijin') keterangan = 'Ijin';
+            else if (st === 'Tugas Luar') keterangan = 'Tugas Luar';
+            else if (st.includes('Permintaan Sendiri')) keterangan = 'Ijin Permintaan Sendiri';
         }
+        if (!keterangan) return;
 
-        if (!isAbsenceEntry) return;
-
-        if (!absentMap[log.employee_id]) absentMap[log.employee_id] = [];
         const dateStr = new Date(log.check_in_time).toLocaleDateString('en-CA');
-
-        // Hindari duplikat tanggal yang sama per karyawan
-        const alreadyExists = absentMap[log.employee_id].some(e => e.dateStr === dateStr);
-        if (!alreadyExists) {
-            absentMap[log.employee_id].push({ dateStr, keterangan, notes: log.notes || '' });
+        if (!explicitReasonMap[log.employee_id]) explicitReasonMap[log.employee_id] = {};
+        if (!explicitReasonMap[log.employee_id][dateStr]) {
+            explicitReasonMap[log.employee_id][dateStr] = { keterangan, notes: log.notes || '' };
         }
     });
 
@@ -2801,13 +2793,11 @@ window.loadPerforma = async function() {
         return { icon: '❌', label: 'Kehadiran Sangat Kurang', color: '#7f1d1d', bg: 'rgba(127,29,29,0.08)', border: 'rgba(127,29,29,0.2)' };
     };
 
-    // Helper: format tanggal ke tampilan Indonesia
     const formatTanggal = (dateStr) => {
         const d = new Date(dateStr + 'T12:00:00');
         return d.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
     };
 
-    // Helper: style badge keterangan ketidakhadiran
     const getKetStyle = (ket) => {
         if (ket === 'Sakit')
             return { color: '#dc2626', bg: 'rgba(220,38,38,0.1)', border: 'rgba(220,38,38,0.25)', icon: 'ri-heart-pulse-line' };
@@ -2815,14 +2805,15 @@ window.loadPerforma = async function() {
             return { color: '#d97706', bg: 'rgba(217,119,6,0.1)', border: 'rgba(217,119,6,0.25)', icon: 'ri-chat-history-line' };
         if (ket === 'Tugas Luar')
             return { color: '#0891b2', bg: 'rgba(8,145,178,0.1)', border: 'rgba(8,145,178,0.25)', icon: 'ri-road-map-line' };
-        // default: Tidak Masuk Kantor (tanpa keterangan)
         return { color: '#7f1d1d', bg: 'rgba(127,29,29,0.08)', border: 'rgba(127,29,29,0.25)', icon: 'ri-user-unfollow-line' };
     };
 
     let html = '';
     const sortedEmps = [...allEmployees].sort((a, b) => {
-        const pctA = totalWorkDays > 0 ? (attendanceMap[a.id]?.size || 0) / totalWorkDays * 100 : 0;
-        const pctB = totalWorkDays > 0 ? (attendanceMap[b.id]?.size || 0) / totalWorkDays * 100 : 0;
+        const hadirCountA = attendanceMap[a.id]?.size || 0;
+        const hadirCountB = attendanceMap[b.id]?.size || 0;
+        const pctA = totalWorkDays > 0 ? hadirCountA / totalWorkDays * 100 : 0;
+        const pctB = totalWorkDays > 0 ? hadirCountB / totalWorkDays * 100 : 0;
         return pctB - pctA;
     });
 
@@ -2833,16 +2824,31 @@ window.loadPerforma = async function() {
         const initials = emp.full_name.split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase();
         const rank = idx + 1;
 
-        // Bangun bagian catatan ketidakhadiran
-        const absentEntries = absentMap[emp.id] || [];
+        // -----------------------------------------------------------
+        // Deteksi hari tidak masuk:
+        // Hari kerja yang sudah lewat tapi TIDAK ada record kehadiran
+        // -----------------------------------------------------------
+        const hadirDays = attendanceMap[emp.id] || new Set();
+        const empExplicitMap = explicitReasonMap[emp.id] || {};
+
+        const absentEntries = relevantWorkDayStrs
+            .filter(dateStr => !hadirDays.has(dateStr))
+            .map(dateStr => {
+                // Ada keterangan eksplisit (Sakit/Ijin/Tugas Luar/absent)
+                if (empExplicitMap[dateStr]) {
+                    return { dateStr, ...empExplicitMap[dateStr] };
+                }
+                // Tidak ada record sama sekali = Tidak Masuk Kantor
+                return { dateStr, keterangan: 'Tidak Masuk Kantor', notes: '' };
+            });
+
         let absentSectionHtml = '';
         if (absentEntries.length > 0) {
             const rows = absentEntries.map((entry, ei) => {
                 const ks = getKetStyle(entry.keterangan);
-                // Tampilkan notes jika bukan auto-generated
-                const isAutoNotes = entry.notes.startsWith('Auto-generated:') || entry.notes === '';
+                const isAutoNotes = !entry.notes || entry.notes.startsWith('Auto-generated:');
                 const notesText = !isAutoNotes
-                    ? `<div style="color:var(--text-muted); font-size:0.72rem; font-style:italic; margin-top:3px; padding-left:2px;">${entry.notes}</div>`
+                    ? `<div style="color:var(--text-muted); font-size:0.72rem; font-style:italic; margin-top:3px;">"${entry.notes}"</div>`
                     : '';
                 const borderStyle = ei < absentEntries.length - 1
                     ? 'border-bottom:1px solid var(--border-light);'
@@ -2850,7 +2856,7 @@ window.loadPerforma = async function() {
                 return `
                 <div style="display:flex; align-items:flex-start; gap:10px; padding:8px 0; ${borderStyle}">
                     <div style="width:30px; height:30px; border-radius:8px; background:${ks.bg}; border:1px solid ${ks.border}; display:flex; align-items:center; justify-content:center; flex-shrink:0; margin-top:1px;">
-                        <i class="${ks.icon}" style="font-size:0.95rem; color:${ks.color};"></i>
+                        <i class="${ks.icon}" style="font-size:0.9rem; color:${ks.color};"></i>
                     </div>
                     <div style="flex:1; min-width:0;">
                         <div style="font-size:0.8rem; font-weight:600; color:var(--text-main);">${formatTanggal(entry.dateStr)}</div>
@@ -2863,14 +2869,13 @@ window.loadPerforma = async function() {
             absentSectionHtml = `
             <div style="border-top:1px solid var(--border-light); padding-top:12px;">
                 <div style="display:flex; align-items:center; gap:7px; margin-bottom:10px;">
-                    <i class="ri-calendar-close-line" style="font-size:1rem; color:#dc2626;"></i>
+                    <i class="ri-calendar-close-line" style="font-size:0.95rem; color:#dc2626;"></i>
                     <span style="font-size:0.8rem; font-weight:700; color:#dc2626;">Catatan Hari Tidak Masuk</span>
                     <span style="margin-left:auto; font-size:0.72rem; font-weight:700; color:white; background:#dc2626; border-radius:99px; padding:2px 9px;">${absentEntries.length} hari</span>
                 </div>
                 <div>${rows}</div>
             </div>`;
         } else {
-            // Tidak ada catatan ketidakhadiran = hadir penuh / tidak ada record absen
             absentSectionHtml = `
             <div style="border-top:1px solid var(--border-light); padding-top:10px;">
                 <div style="display:flex; align-items:center; gap:7px;">
