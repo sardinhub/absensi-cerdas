@@ -1537,7 +1537,8 @@ async function loadReport(isAutoRefresh = false) {
         if (!grouped[key]) {
             grouped[key] = { 
                 name: log.employees?.full_name || 'N/A', 
-                date: new Date(log.check_in_time).toLocaleDateString('id-ID'), 
+                date: new Date(log.check_in_time).toLocaleDateString('id-ID'),
+                dateStr: date,
                 in: '-', 
                 out: '-', 
                 late: 0, 
@@ -1546,6 +1547,7 @@ async function loadReport(isAutoRefresh = false) {
                 penalty: 0, 
                 isComplete: false,
                 isPiket: isPiketLog,
+                isMissing: false,
                 logId: log.id
             };
             window.activeLogs[log.id] = log;
@@ -1586,7 +1588,66 @@ async function loadReport(isAutoRefresh = false) {
         }
         else if (log.type === 'piket_out') { grouped[key].out = time; grouped[key].isComplete = true; }
     });
-    const rows = Object.values(grouped).filter(r => r.isComplete).reverse();
+    // --- Deteksi hari kerja tanpa absensi (tidak ada record sama sekali) ---
+    if (typeFilter !== 'piket') {
+        // Tentukan rentang tanggal dari filter
+        let rangeStart, rangeEnd;
+        const todayMidnight = new Date(); todayMidnight.setHours(23, 59, 59, 999);
+        if (per === 'daily') {
+            rangeStart = new Date(); rangeStart.setHours(0,0,0,0);
+            rangeEnd = todayMidnight;
+        } else if (per === 'weekly') {
+            rangeEnd = todayMidnight;
+            rangeStart = new Date(); rangeStart.setDate(rangeStart.getDate() - 6); rangeStart.setHours(0,0,0,0);
+        } else if (per === 'monthly') {
+            rangeStart = new Date(startOfToday.getFullYear(), startOfToday.getMonth(), 1);
+            rangeEnd = todayMidnight;
+        } else if (per === 'custom') {
+            const sv = document.getElementById('reportDateStart')?.value;
+            const ev = document.getElementById('reportDateEnd')?.value;
+            if (sv && ev) {
+                rangeStart = new Date(sv + 'T00:00:00');
+                rangeEnd = new Date(ev + 'T23:59:59');
+                if (rangeEnd > todayMidnight) rangeEnd = todayMidnight;
+            }
+        }
+        if (rangeStart && rangeEnd) {
+            // Kumpulkan hari kerja dalam rentang tersebut
+            const workingDaysInRange = [];
+            let wd = new Date(rangeStart); wd.setHours(12,0,0,0);
+            while (wd <= rangeEnd) {
+                const isHoliday = await checkIfHoliday(new Date(wd));
+                if (!isHoliday) workingDaysInRange.push(wd.toLocaleDateString('en-CA'));
+                wd.setDate(wd.getDate() + 1);
+            }
+            // Karyawan yang dicek
+            const empsToCheck = emp === 'all' ? allEmployees : allEmployees.filter(e => e.id === emp);
+            empsToCheck.forEach(employee => {
+                workingDaysInRange.forEach(dateStr => {
+                    const kantorKey = `${dateStr}_${employee.id}`;
+                    if (!grouped[kantorKey]) {
+                        // Tidak ada record kantor sama sekali pada hari kerja ini
+                        const displayDate = new Date(dateStr + 'T12:00:00').toLocaleDateString('id-ID');
+                        grouped[`${dateStr}_${employee.id}_missing`] = {
+                            name: employee.full_name,
+                            date: displayDate,
+                            dateStr: dateStr,
+                            in: '—', out: '—', late: 0,
+                            status: 'Tidak Masuk Kantor',
+                            reward: 0, penalty: 0,
+                            isComplete: true, isPiket: false,
+                            isAbsent: true, isMissing: true,
+                            logId: null
+                        };
+                    }
+                });
+            });
+        }
+    }
+    // Urutkan semua baris berdasarkan tanggal (terbaru di atas)
+    const rows = Object.values(grouped)
+        .filter(r => r.isComplete)
+        .sort((a, b) => (b.dateStr || '').localeCompare(a.dateStr || ''));
     let trs = '', totalHadir = 0, totalTelat = 0, totalPiket = 0, totalAbsen = 0;
     
     rows.forEach(r => {
@@ -1622,7 +1683,11 @@ async function loadReport(isAutoRefresh = false) {
             }
         }
         const nameText = r.isPiket ? `${r.name} <span class="badge" style="background: rgba(217,119,6,0.1); color: var(--warning); font-size:0.65rem; padding: 2px 6px; margin-left: 6px;">Piket</span>` : r.name;
-        trs += `<tr><td><strong style="color:var(--text-main);">${nameText}</strong></td><td>${r.date}</td><td>${r.in}</td><td>${r.out}</td><td>${r.late > 0 ? `${r.late} Menit` : '-'}</td><td><span class="badge clickable-badge" ${badgeStyle} onclick="showHistoryDetail('${r.logId}')" title="Klik untuk detail"><i class="ri-information-line"></i> ${r.status}</span></td><td style="color:var(--success); font-weight:600;">Rp ${r.reward.toLocaleString()}</td><td style="color:var(--danger); font-weight:600;">Rp ${r.penalty.toLocaleString()}</td></tr>`;
+        // Badge status: bisa diklik jika ada logId, tidak jika missing (tidak ada record)
+        const badgeContent = r.isMissing
+            ? `<span class="badge" ${badgeStyle} title="Tidak ada absensi pada hari kerja ini"><i class="ri-user-unfollow-line"></i> ${r.status}</span>`
+            : `<span class="badge clickable-badge" ${badgeStyle} onclick="showHistoryDetail('${r.logId}')" title="Klik untuk detail"><i class="ri-information-line"></i> ${r.status}</span>`;
+        trs += `<tr style="${r.isMissing ? 'background:rgba(127,29,29,0.03);' : ''}"><td><strong style="color:var(--text-main);">${nameText}</strong></td><td>${r.date}</td><td style="color:${r.isMissing ? '#7f1d1d' : 'inherit'}">${r.in}</td><td style="color:${r.isMissing ? '#7f1d1d' : 'inherit'}">${r.out}</td><td>${r.late > 0 ? `${r.late} Menit` : '-'}</td><td>${badgeContent}</td><td style="color:var(--success); font-weight:600;">Rp ${r.reward.toLocaleString()}</td><td style="color:var(--danger); font-weight:600;">Rp ${r.penalty.toLocaleString()}</td></tr>`;
     });
 
     if (!trs) trs = '<tr><td colspan="8" style="text-align: center; color: var(--text-muted); padding: 20px;">Tidak ada data laporan</td></tr>';
