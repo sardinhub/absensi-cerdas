@@ -413,6 +413,7 @@ window.toggleManualSubFields = function() {
     const status = document.getElementById('manualStatus').value;
     const attachmentGroup = document.getElementById('manualSakitAttachmentGroup');
     const ijinGroup = document.getElementById('manualIjinTypeGroup');
+    const timeGroup = document.getElementById('manualTimeGroup');
     
     if (attachmentGroup) {
         if (status === 'Sakit') attachmentGroup.classList.remove('hidden');
@@ -421,6 +422,10 @@ window.toggleManualSubFields = function() {
     if (ijinGroup) {
         if (status === 'Ijin') ijinGroup.classList.remove('hidden');
         else ijinGroup.classList.add('hidden');
+    }
+    if (timeGroup) {
+        if (status === 'Hadir') timeGroup.classList.remove('hidden');
+        else timeGroup.classList.add('hidden');
     }
 };
 
@@ -434,6 +439,13 @@ window.openManualAttendance = () => {
     const fileInput = document.getElementById('manualSakitAttachment');
     if (fileInput) fileInput.value = '';
     
+    const timeInput = document.getElementById('manualCheckInTime');
+    if (timeInput) {
+        const now = new Date();
+        const pad = n => String(n).padStart(2, '0');
+        timeInput.value = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+    }
+    
     toggleManualSubFields();
     document.getElementById('manualAttendanceModal').classList.remove('hidden');
 };
@@ -444,11 +456,39 @@ window.saveManualAttendance = async () => {
     const notesVal = document.getElementById('manualNote').value;
     
     let finalStatus = st;
+    let finalType = 'manual';
     let penalty = 0;
+    let reward = 0;
+    let lateMins = 0;
+    let checkInTimeIso = new Date().toISOString();
     let attachmentBase64 = '';
     let attachmentName = '';
     
-    if (st === 'Sakit') {
+    if (st === 'Hadir') {
+        finalType = 'in'; // Agar tercatat sebagai check-in biasa (bisa absen pulang nanti)
+        const timeInputVal = document.getElementById('manualCheckInTime')?.value;
+        const checkInDate = timeInputVal ? new Date(timeInputVal) : new Date();
+        checkInTimeIso = checkInDate.toISOString();
+        
+        finalStatus = "On-Time";
+        const sched = getSchedule(getWITADay(checkInDate));
+        if (sched) {
+            const workStart = new Date(checkInDate);
+            const [h, m] = sched.in.split(':').map(Number);
+            workStart.setHours(h, m, 0, 0);
+
+            if (checkInDate <= new Date(workStart.getTime() - (CONFIG.earlyBirdBuffer * 60000))) { 
+                finalStatus = "Early Bird"; 
+                reward = CONFIG.earlyBirdReward; 
+            } else if (checkInDate > workStart) {
+                finalStatus = "Late";
+                lateMins = Math.floor((checkInDate - workStart) / 60000);
+                const rawPenalty = lateMins * CONFIG.latePenaltyPerMinute;
+                const maxCap = CONFIG.maxDailyPenalty || 50000;
+                penalty = Math.min(rawPenalty, maxCap);
+            }
+        }
+    } else if (st === 'Sakit') {
         const fileInput = document.getElementById('manualSakitAttachment');
         if (fileInput && fileInput.files && fileInput.files[0]) {
             const file = fileInput.files[0];
@@ -469,19 +509,22 @@ window.saveManualAttendance = async () => {
     }
     
     let finalNotes = notesVal;
+    if (st === 'Hadir') {
+        finalNotes = finalNotes ? `[Admin Bantu Absen] ${finalNotes}` : `[Admin Bantu Absen] Device Error`;
+    }
     if (attachmentBase64) {
         finalNotes += `\n[attachment:${attachmentName}||${attachmentBase64}]`;
     }
     
     const { error } = await supabaseClient.from('attendance_logs').insert([{ 
         employee_id: id, 
-        check_in_time: new Date().toISOString(), 
+        check_in_time: checkInTimeIso, 
         status: finalStatus, 
-        type: 'manual', 
+        type: finalType, 
         notes: finalNotes, 
-        reward_amount: 0, 
+        reward_amount: reward, 
         penalty_amount: penalty,
-        late_duration_minutes: 0
+        late_duration_minutes: lateMins
     }]);
     
     if (!error) { 
